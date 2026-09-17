@@ -7,7 +7,7 @@ from returnops.domain.states import RefundAttemptStatus, ReturnStatus
 from returnops.errors import Conflict
 from returnops.models import RefundAttempt, ReturnCase, WebhookReceipt
 from returnops.services.webhooks import process_payment_webhook
-from tests.helpers import create_pending_refund
+from .helpers import create_pending_refund
 
 
 def test_success_webhook_is_deduplicated(db, seeded) -> None:
