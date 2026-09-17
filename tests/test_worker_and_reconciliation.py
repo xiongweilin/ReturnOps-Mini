@@ -11,7 +11,7 @@ from returnops.services.payments import PaymentProviderClient, mark_success
 from returnops.services.reconciliation import reconcile_unknown_refund
 from returnops.services.returns import retry_failed_refund
 from returnops.services.worker import process_event
-from tests.helpers import create_pending_refund
+from .helpers import create_pending_refund
 
 
 def _claim_one(db):
@@ -170,8 +170,6 @@ def test_expired_dispatching_attempt_can_be_recovered_with_same_provider_key(db,
         select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
     ).scalar_one()
 
-    # Simulate the first worker crossing the durable boundary and then dying
-    # before it can persist a provider result.
     attempt.status = RefundAttemptStatus.DISPATCHING
     attempt.dispatch_count = 1
     db.commit()
