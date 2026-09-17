@@ -17,6 +17,7 @@ from returnops.services.worker import process_event
 
 pytestmark = pytest.mark.integration
 
+
 def test_two_workers_claim_disjoint_outbox_rows(pg_factory) -> None:
     with pg_factory() as db:
         org = Organization(name="Outbox")
@@ -96,6 +97,7 @@ def _seed_pending_refund_for_runtime(pg_factory):
         )
         db.add_all([org, service])
         db.flush()
+
         case = ReturnCase(
             organization_id=org.id,
             case_ref=f"RET-{uuid.uuid4().hex[:8]}",
@@ -109,6 +111,9 @@ def _seed_pending_refund_for_runtime(pg_factory):
             version=6,
             created_by_user_id=service.id,
         )
+        db.add(case)
+        db.flush()
+
         attempt = RefundAttempt(
             organization_id=org.id,
             return_case_id=case.id,
@@ -117,8 +122,9 @@ def _seed_pending_refund_for_runtime(pg_factory):
             currency="USD",
             status=RefundAttemptStatus.PLANNED,
         )
-        db.add_all([case, attempt])
+        db.add(attempt)
         db.flush()
+
         event = enqueue(
             db,
             organization_id=org.id,
