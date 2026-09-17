@@ -46,15 +46,29 @@ def reconcile_unknown_refund(
         raise NotFound("refund attempt not found")
 
     observed = provider.lookup_by_idempotency_key(attempt.provider_idempotency_key)
-    if observed is not None and observed.status == "succeeded":
-        mark_success(
+    if observed is not None:
+        if observed.status == "succeeded":
+            mark_success(
+                db,
+                attempt,
+                provider_ref=observed.provider_ref,
+                evidence=observed.raw,
+                evidence_source="manual_provider_lookup",
+            )
+            return {"resolution": "provider_confirmed_success", "providerRef": observed.provider_ref}
+
+        # "存在但不是成功" 与 "权威查询确认不存在" 是不同事实。
+        # 对未知/处理中等非终态不能擅自推导成失败并开放重试。
+        mark_manual_reconciliation_needed(
             db,
             attempt,
-            provider_ref=observed.provider_ref,
-            evidence=observed.raw,
-            evidence_source="manual_provider_lookup",
+            reason=f"provider returned non-success status: {observed.status}",
         )
-        return {"resolution": "provider_confirmed_success", "providerRef": observed.provider_ref}
+        return {
+            "resolution": "provider_non_terminal_or_unrecognized",
+            "providerRef": observed.provider_ref,
+            "providerStatus": observed.status,
+        }
 
     if attempt.status is RefundAttemptStatus.UNKNOWN:
         mark_authoritatively_not_found(db, attempt)

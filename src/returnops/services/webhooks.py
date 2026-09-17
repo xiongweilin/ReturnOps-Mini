@@ -8,7 +8,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from returnops.domain.states import RefundAttemptStatus
 from returnops.errors import Conflict, NotFound
 from returnops.models import RefundAttempt, WebhookReceipt
 from returnops.services.payments import mark_success
@@ -72,12 +71,14 @@ def process_payment_webhook(db: Session, *, payload: dict[str, Any]) -> dict[str
         provider_ref = str(payload.get("refund_id") or "")
         if not provider_ref:
             raise Conflict("successful webhook missing refund_id")
-        if attempt.status is not RefundAttemptStatus.SUCCEEDED:
-            mark_success(
-                db,
-                attempt,
-                provider_ref=provider_ref,
-                evidence=payload,
-                evidence_source="webhook",
-            )
+        # Always validate success evidence, even when the attempt was already
+        # confirmed. A later event with a different refund reference or amount
+        # is a provider inconsistency, not a harmless duplicate.
+        mark_success(
+            db,
+            attempt,
+            provider_ref=provider_ref,
+            evidence=payload,
+            evidence_source="webhook",
+        )
     return {"accepted": True, "replayed": False}

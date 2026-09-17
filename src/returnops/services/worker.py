@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from returnops.config import get_settings
 from returnops.db import SessionLocal
-from returnops.errors import ExternalSystemFailure
+from returnops.errors import Conflict, ExternalSystemFailure
 from returnops.services.outbox import (
     TOPIC_REFUND_DISPATCH,
     claim_batch,
@@ -97,13 +97,27 @@ def process_event(db: Session, event, *, provider: PaymentProviderClient) -> Non
 
     db.refresh(event)
     db.refresh(attempt)
-    mark_success(
-        db,
-        attempt,
-        provider_ref=result.provider_ref,
-        evidence=result.raw,
-        evidence_source="synchronous_provider_response",
-    )
+    try:
+        mark_success(
+            db,
+            attempt,
+            provider_ref=result.provider_ref,
+            evidence=result.raw,
+            evidence_source="synchronous_provider_response",
+        )
+    except Conflict as exc:
+        # The provider claims success but the evidence contradicts the durable
+        # local intent (for example amount/currency/reference mismatch). This is
+        # neither a safe retry nor a success: preserve ambiguity and stop
+        # automatic dispatch until a human/provider investigation resolves it.
+        mark_unknown(db, attempt, error=f"provider evidence conflict: {exc}")
+        mark_manual_reconciliation_needed(
+            db,
+            attempt,
+            reason=f"provider success evidence conflicts with refund intent: {exc}",
+        )
+        dead_letter(event, error=str(exc))
+        return
     mark_done(event)
 
 

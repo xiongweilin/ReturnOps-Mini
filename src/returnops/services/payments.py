@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from returnops.config import get_settings
 from returnops.domain.states import RefundAttemptStatus, ReturnStatus
-from returnops.errors import ExternalSystemFailure, NotFound
+from returnops.errors import Conflict, ExternalSystemFailure, NotFound
 from returnops.models import RefundAttempt, ReturnCase
 from returnops.services.audit import record_audit
 from returnops.services.returns import system_transition
@@ -91,12 +91,31 @@ def _load_case_for_attempt(db: Session, attempt: RefundAttempt) -> ReturnCase:
 
 
 def mark_dispatching(db: Session, attempt: RefundAttempt) -> None:
-    if attempt.status not in {RefundAttemptStatus.PLANNED, RefundAttemptStatus.FAILED}:
+    # DISPATCHING is accepted for lease recovery. A previous worker may have
+    # committed the intent before crashing at any point around the network call.
+    # Re-dispatch is safe only because the provider contract requires the same
+    # stable idempotency key to identify the same logical refund.
+    if attempt.status not in {
+        RefundAttemptStatus.PLANNED,
+        RefundAttemptStatus.FAILED,
+        RefundAttemptStatus.DISPATCHING,
+    }:
         raise RuntimeError(f"cannot dispatch attempt in {attempt.status.value}")
+    recovering = attempt.status is RefundAttemptStatus.DISPATCHING
     attempt.status = RefundAttemptStatus.DISPATCHING
     attempt.dispatch_count += 1
     attempt.last_error = None
     db.flush()
+    if recovering:
+        record_audit(
+            db,
+            organization_id=attempt.organization_id,
+            actor_user_id=None,
+            action="refund.dispatch_recovered",
+            resource_type="refund_attempt",
+            resource_id=str(attempt.id),
+            metadata={"dispatch_count": attempt.dispatch_count},
+        )
 
 
 def mark_known_failure(db: Session, attempt: RefundAttempt, *, error: str) -> None:
@@ -145,6 +164,24 @@ def mark_success(
     evidence: dict[str, Any],
     evidence_source: str,
 ) -> None:
+    # Provider evidence is not trusted merely because it says "succeeded".
+    # Check the parts of the external fact that ReturnOps can independently
+    # compare with its own durable refund intent.
+    if not provider_ref:
+        raise Conflict("provider success is missing refund reference")
+    evidence_amount = evidence.get("amount_minor")
+    if evidence_amount is not None and int(evidence_amount) != attempt.amount_minor:
+        raise Conflict("provider success amount does not match refund intent")
+    evidence_currency = evidence.get("currency")
+    if evidence_currency is not None and str(evidence_currency).upper() != attempt.currency.upper():
+        raise Conflict("provider success currency does not match refund intent")
+    if (
+        attempt.status is RefundAttemptStatus.SUCCEEDED
+        and attempt.provider_ref
+        and attempt.provider_ref != provider_ref
+    ):
+        raise Conflict("provider returned conflicting refund references for one idempotency key")
+
     attempt.status = RefundAttemptStatus.SUCCEEDED
     attempt.provider_ref = provider_ref
     attempt.evidence_json = evidence
