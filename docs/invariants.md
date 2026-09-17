@@ -1,144 +1,82 @@
-# System invariants
+# 正确性不变量
 
-This file is the human-owned correctness contract for ReturnOps Mini. AI-generated code may change implementation details, but a change to one of these rules must be explicit and accompanied by tests/migrations where applicable.
+这个文件不是“设计愿望”，而是 ReturnOps Mini 的正确性边界。训练时，任何修改都应先回答：它影响了哪些不变量，证据是什么。
 
-## 1. Tenant isolation
+## 1. 租户隔离
 
-- Every return case, approval, refund attempt, idempotency record, and business audit event belongs to one organization.
-- A normal business query is scoped by the current organization.
-- A user may act only through a membership in the selected organization.
-- A known object id from another tenant must not disclose whether that object exists; the business API returns not-found semantics.
+- 每个 `ReturnCase`、`Approval`、`RefundAttempt` 都归属于一个 Organization。
+- 面向用户的查询必须同时带 `organization_id` 条件。
+- 用户访问其他租户已知对象 ID 时返回 404，而不是泄露对象存在性的 403。
 
-Questions to ask:
+训练问题：为什么只在 API router 做 tenant check 不够？后台 worker、service 内部调用是否可能绕过它？
 
-- Does a new query include `organization_id`?
-- Does a background worker derive tenant identity from persisted data instead of trusting caller input?
-- Can an unscoped provider reference be used to cross tenant boundaries?
+## 2. 状态机
 
-## 2. Legal state transitions
+业务状态只能沿显式转换表前进。`CLOSED` 与 `REJECTED` 是终态。普通用户不能直接把 Case 写成 `REFUNDED`。
 
-The state machine in `domain/states.py` is the single vocabulary for case transitions.
+训练问题：测试“合法转换能成功”是否足以证明非法转换不会发生？还有哪些写路径可以直接改 status？
 
-Normal path:
+## 3. 乐观并发控制
 
-```text
-requested -> authorized -> received -> inspected
-          -> refund_approved -> refund_pending
-          -> refunded -> reconciled -> closed
-```
+状态更新必须把 `version` 放入同一条原子 UPDATE 的 WHERE 条件，而不是 Python 中先读再判断。
 
-Exceptional paths:
+目标语义：两个并发请求读到 version=N 后，最多一个请求能把它推进到 N+1。
 
-```text
-requested -> rejected
-inspected -> rejected
-refund_pending -> refund_unknown
-refund_pending -> needs_reconciliation
-refund_unknown -> refunded
-refund_unknown -> needs_reconciliation
-needs_reconciliation -> refunded
-needs_reconciliation -> refund_pending   # explicit retry only after known failure
-```
+## 4. 退款金额
 
-`closed` and `rejected` are terminal.
+- 金额必须大于 0。
+- 批准金额不能超过申请金额。
+- 高额退款需要两个不同 finance 用户对相同金额批准。
+- 第一次高额审批虽然不改变业务状态，也必须推进 version，避免两个并发用户都成为“第一审批人”。
 
-## 3. Optimistic concurrency
+## 5. 请求幂等
 
-- Each return has a monotonically increasing integer `version`.
-- User-driven mutations carry `expected_version`.
-- The database update itself compares the old version/status; checking only in Python is not sufficient.
-- A stale writer receives a version conflict and must reload.
+唯一键是 `(organization_id, scope, key)`。
 
-Evidence required: real PostgreSQL concurrent transactions, not only sequential SQLite tests.
+相同 key + 相同 body：返回原结果。
 
-## 4. Refund amount
+相同 key + 不同 body：冲突。
 
-- Requested amount is strictly positive.
-- Approved amount is strictly positive.
-- Approved amount cannot exceed requested amount.
-- A high-value second approval must approve the same amount as the first approval.
+并发相同请求：数据库唯一约束决定 winner，loser 不能变成通用 500。
 
-## 5. Approval independence
+## 6. 外部退款事实
 
-- High-value refund threshold is configuration.
-- At/above the threshold, two distinct finance user ids are required.
-- The first approval alone must not plan or dispatch a refund.
-- A user cannot satisfy both approval slots by retrying or by changing idempotency keys.
+`POST /refunds` 的网络超时不等于支付方失败。只要请求可能已经越过网络边界，就可能出现“支付方成功，本系统未知”。
 
-## 6. One logical provider refund
+因此：
 
-- The training model permits one refund attempt per return case.
-- A refund attempt has one stable provider idempotency key.
-- Automatic retry after a provider-declared pre-processing failure reuses that key.
-- Changing the provider idempotency key during a retry would violate this invariant.
+- `UNKNOWN` 禁止盲目重新 POST；
+- 必须通过 Webhook 或权威查询收敛；
+- `REFUNDED` 必须有支付方证据；
+- 已经 `SUCCEEDED` 的 attempt 不能因为晚到的 timeout handler 被降级成 `UNKNOWN`。
 
-## 7. Ambiguity is not failure
+## 7. Webhook
 
-A timeout/network error after dispatch does not prove whether the provider executed the refund.
+- `(provider, event_id)` 唯一；
+- 重复相同 event 应安全重放；
+- 相同 event id 携带不同 payload 必须拒绝；
+- Webhook 成功不能依赖同步 HTTP 请求是否收到 ACK。
 
-Therefore:
+## 8. Outbox
 
-- ambiguous dispatch -> attempt `UNKNOWN`;
-- case -> `REFUND_UNKNOWN`;
-- the dispatch outbox item is considered handled;
-- no automatic retry is scheduled;
-- an authoritative provider lookup or webhook must resolve the ambiguity.
+业务事务只负责记录“需要执行的外部动作”，worker 再越过网络边界。
 
-## 8. Known failure is different from unknown
+需要区分：planned、processing、known failure、unknown outcome、done。
 
-A provider response that explicitly states the request was rejected before processing may be retried automatically up to the configured limit.
+训练重点不是记住字段，而是能解释“数据库 commit 在哪里，网络调用在哪里，进程在两者之间 crash 会发生什么”。
 
-If safe retries are exhausted, the case enters `NEEDS_RECONCILIATION`.
+## 9. 审计
 
-If an authoritative lookup proves that an `UNKNOWN` idempotency key does not exist at the provider, the attempt becomes known `FAILED`, the case enters `NEEDS_RECONCILIATION`, and a finance user may explicitly retry.
+关键业务动作应留下 actor、resource、action 与关键 metadata。审计不是业务事实的替代品，但应能帮助重建“谁在什么时候做了什么”。
 
-## 9. Provider evidence controls `REFUNDED`
+## 10. 证据等级
 
-No human endpoint directly marks a case refunded.
+不要把所有绿色测试视为同等证据：
 
-Evidence sources currently accepted are:
+- 纯函数测试：状态表、金额规则；
+- SQLite 测试：HTTP 契约、基本事务；
+- PostgreSQL 并发测试：unique/CAS/row lock 竞争；
+- fake provider：网络失败、ACK 丢失、重复 Webhook；
+- migration 回环：schema 可演进性。
 
-- successful synchronous provider response;
-- valid provider webhook;
-- manual authoritative provider lookup.
-
-The evidence source is written to the audit trail.
-
-## 10. Webhook deduplication
-
-- `(provider, event_id)` is unique.
-- Same event id + same payload is replay-safe.
-- Same event id + different payload is a conflict and must not be silently accepted.
-- A duplicate success event must not cause a second business side effect.
-
-## 11. Idempotent business writes
-
-- Every mutating user-facing business endpoint requires `Idempotency-Key`.
-- The uniqueness domain is organization + operation scope + key.
-- Same key + same canonical request -> original response.
-- Same key + different canonical request -> conflict.
-- Concurrent same-key insert races must resolve through the database constraint and replay the winner, not leak a 500.
-
-## 12. Outbox ownership
-
-- Planning the refund attempt and creating the outbox event happen in the same database transaction as the state change.
-- Workers claim events with a lease and `FOR UPDATE SKIP LOCKED` on PostgreSQL.
-- Expired `processing` leases can be reclaimed.
-- Known-safe failures can be rescheduled with backoff.
-- Ambiguous provider results are not rescheduled.
-
-## 13. Audit is evidence, not authority
-
-Audit records explain important state/effect decisions but are not the source of current business state. A missing audit row is observability damage; it must not be used as a hidden way to authorize a state transition.
-
-## 14. Migrations preserve meaning
-
-Future schema changes must consider existing rows. Do not solve a changed requirement by deleting/recreating the database.
-
-At minimum, CI must continue proving the migration chain can reach head. When a later migration changes existing data, add a fixture-at-old-version upgrade test.
-
-## 15. Terminal closure
-
-`CLOSED` means the refund has provider evidence, has been reconciled by finance, and requires no further workflow transition in this small product.
-
-A later feature that needs reopening must introduce explicit semantics rather than silently adding `closed -> ...` transitions.
+每次 review 都要明确：当前证据证明了什么，没有证明什么。

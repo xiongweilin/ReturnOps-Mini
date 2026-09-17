@@ -1,200 +1,74 @@
-# Failure lab: exercises for engineering judgment
+# 故障实验室
 
-Use these exercises after the happy path works. The point is to predict the correct state/evidence first, then run the experiment.
+这份文档用于训练“先预测，再验证”。不要先让 AI 告诉你答案。
 
-Do not ask an AI for the final answer before writing your own prediction.
+每次实验固定写四项：
 
-## Lab 1 — stale version
+1. 我预测系统会发生什么；
+2. 我的预测依赖哪些前提；
+3. 用什么证据验证；
+4. 真实结果与预测哪里不同。
 
-Setup:
+## 实验 1：stale version
 
-1. Put a case in `AUTHORIZED` with version `2`.
-2. Open two independent database/API clients.
-3. Both read version `2`.
-4. Both try to receive it with `expected_version=2`.
+两个客户端都读到 version=2，然后同时尝试推进同一 Case。
 
-Prediction questions:
+先回答：最多几个能成功？哪一条 SQL 条件提供保证？loser 会留下审计记录吗？
 
-- How many writes may succeed?
-- What exact database predicate enforces that?
-- What state/version remains?
-- What happens to audit rows from the losing transaction?
+## 实验 2：同一个 Idempotency-Key 并发到达
 
-Acceptance: one winner, one `VersionConflict`; the loser transaction must not leave business artifacts.
+让多个请求同时提交完全相同的 body 和 key。
 
-## Lab 2 — same idempotency key, 20 callers
+先回答：为什么它们可能都先看到“记录不存在”？真正串行化发生在哪一步？loser 应返回什么？
 
-Run the PostgreSQL integration test or reproduce it manually.
+## 实验 3：跨租户对象 ID
 
-Prediction questions:
+A 租户创建 Case，B 租户拿到真实 Case ID 后读取。
 
-- Why can both callers initially observe “no record”?
-- At which database operation do they serialize?
-- Why is a savepoint used?
-- Why is catching `IntegrityError` without a savepoint dangerous?
-- Why must the loser read the winner's response rather than inventing a second response?
+先回答：应该是 403 还是 404？如果只在 router 检查 tenant，service 是否仍安全？
 
-Acceptance: all callers get one logical result, exactly one idempotency row exists, and no caller receives a generic 500.
+## 实验 4：高额双人审批
 
-## Lab 3 — cross-tenant object id
+两个 finance 用户同时基于同一个 version 提交“第一审批”。
 
-1. Create Organization A and Organization B.
-2. Create a return under A.
-3. Authenticate as a valid B user.
-4. Call `GET /v1/returns/{A_case_id}` while selecting B.
+先回答：能否出现两条 first approval？为什么第一次审批必须推进 version？
 
-Prediction questions:
+## 实验 5：执行前明确失败
 
-- Should this be 403 or 404, and why?
-- Which layer must enforce the tenant predicate?
-- Would checking tenant only in the router be sufficient for background/service callers?
+设置 `RETURNOPS_PAYMENT_SIMULATION_MODE=503_before_processing`。
 
-Acceptance: B cannot distinguish a real A case id from a nonexistent id through this endpoint.
+先回答：这是 known failure 还是 unknown？为什么允许重试？重试是否应复用 provider idempotency key？
 
-## Lab 4 — two high-value approvers
+## 实验 6：支付方已成功但 ACK 丢失
 
-Set a low threshold for convenience, then create an inspected case above it.
+设置 `RETURNOPS_PAYMENT_SIMULATION_MODE=timeout_after_processing`。
 
-1. Finance A approves amount 60,000.
-2. Finance A tries again under another idempotency key.
-3. Finance B approves a different amount.
-4. Finance B approves the same amount.
+支付方先保存退款成功，再让 HTTP 客户端超时。
 
-Prediction questions:
+先回答：Case 应进入什么状态？worker 能否自动再次 POST？用什么证据才能最终进入 REFUNDED？
 
-- After step 1, why should state still be `INSPECTED`?
-- What prevents step 2?
-- What prevents step 3?
-- Which step creates the refund attempt/outbox event?
+## 实验 7：Webhook 比 timeout handler 更早提交
 
-Acceptance: only step 4 completes the business approval.
+顺序可能是：支付方成功 → Webhook 到达并把 attempt 标成 SUCCEEDED → 原 HTTP 请求超时。
 
-## Lab 5 — provider rejects before processing
+先回答：晚到的 timeout handler 能否把 SUCCEEDED 降级为 UNKNOWN？应写什么回归测试证明规则？
 
-Set:
+## 实验 8：重复 Webhook
 
-```text
-RETURNOPS_PAYMENT_SIMULATION_MODE=503_before_processing
-```
+同一个 event id 连续发送两次。
 
-Prediction questions:
+先回答：数据库哪一个约束负责去重？为什么还要比较 payload hash？
 
-- Is the outcome known or unknown?
-- Why is automatic retry allowed here?
-- Does retry reuse or replace the provider idempotency key?
-- What happens after the retry limit?
+## 实验 9：worker 在支付成功后、本地 commit 前 crash
 
-Acceptance: safe failures retry with backoff; exhaustion routes to reconciliation.
+支付方已经退款，但本地事务没有提交成功状态。
 
-## Lab 6 — timeout after provider success
+先回答：lease 到期后 worker 再次看到事件会怎样？为什么稳定的 provider idempotency key 很重要？
 
-Set:
+## 实验 10：一年后的规则变化
 
-```text
-RETURNOPS_PAYMENT_SIMULATION_MODE=timeout_after_processing
-```
+把规则改成：小额一个审批，大额两个不同审批人。假设数据库已有 10 万条历史记录。
 
-The fake provider persists a successful refund and then delays its response beyond the ReturnOps client timeout.
+先不要写代码，先设计 migration 顺序、历史数据解释、旧 API 兼容窗口、部署顺序和 rollback。
 
-Before running it, answer:
-
-- Is the refund failed?
-- May the worker automatically issue another POST?
-- What case state should be visible immediately after the timeout?
-- What evidence can later resolve the state?
-
-Acceptance: attempt becomes `UNKNOWN`, case becomes `REFUND_UNKNOWN`, and no automatic redispatch is queued.
-
-Then use provider reconciliation. Because the fake provider persisted the refund, lookup should confirm success and transition the case to `REFUNDED`.
-
-## Lab 7 — ACK lost and webhook arrives first
-
-Use `timeout_after_processing` and let the fake provider webhook arrive while the HTTP client is still timing out.
-
-Think about ordering:
-
-```text
-provider stores refund
-provider schedules webhook
-webhook marks attempt success
-HTTP request times out
-worker catches timeout
-```
-
-Questions:
-
-- Can the worker overwrite `SUCCEEDED` with `UNKNOWN`?
-- Does the current transaction/session ordering make this possible?
-- What test would prove the desired rule?
-
-This is intentionally a deeper exercise. If you discover an ordering bug, add a regression test before fixing it.
-
-## Lab 8 — duplicate webhook
-
-Set `duplicate_webhook`.
-
-Questions:
-
-- What database constraint provides dedupe?
-- Why do we also compare the payload hash?
-- What happens if a provider incorrectly reuses an event id for a changed payload?
-
-Acceptance: duplicate identical event is replay-safe; changed payload is rejected.
-
-## Lab 9 — worker crashes after provider success but before local commit
-
-This failure is not fully instrumented as a built-in switch. Add a temporary test hook or monkeypatch.
-
-Desired reasoning:
-
-- Provider has executed the refund.
-- Local transaction did not commit `SUCCEEDED` or outbox `done`.
-- Lease eventually expires and worker sees the event again.
-- Reusing the same provider idempotency key prevents a second logical provider refund.
-
-Then ask whether the code classifies the second provider response correctly and whether the test proves it.
-
-## Lab 10 — requirement change after one year
-
-New rule:
-
-```text
-amount < 50000: one finance approval
-amount >= 50000: two distinct finance approvals
-```
-
-Assume the old version had only one approval and there are already 100,000 rows.
-
-Do not write code first. Design:
-
-- migration order;
-- interpretation of historical approvals;
-- old API compatibility window;
-- deployment order if old/new application versions overlap;
-- rollback behavior;
-- metrics/audit to detect unexpected paths.
-
-Only after that ask AI to draft a migration.
-
-## Lab 11 — tenant-scoping review
-
-Search every `select(ReturnCase)`, `select(Approval)`, and `select(RefundAttempt)`.
-
-Classify each query as:
-
-- directly user/tenant scoped;
-- derived from a tenant-scoped object;
-- system-global by design;
-- suspicious/unproven.
-
-This exercise is about proving a property across a codebase rather than reading every line.
-
-## Lab 12 — delete one test
-
-Pick an invariant and temporarily delete the test you think proves it. Ask:
-
-- Is there another independent test/evidence path?
-- Was the original test actually proving the invariant or only the happy path?
-- Could the implementation be wrong while all remaining tests stay green?
-
-The goal is to learn that “test suite passes” and “property is proven” are different statements.
+完成这些实验时，目标不是“找到 bug 数量最多”，而是让你越来越能提前预测系统在哪些地方会坏。
