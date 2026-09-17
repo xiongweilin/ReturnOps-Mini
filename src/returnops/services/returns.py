@@ -15,7 +15,9 @@ from returnops.services.case_store import (
     list_cases,
     system_transition,
 )
+from returnops.services.refunds import approve_refund, retry_failed_refund
 from returnops.services.tenancy import TenantContext, require_role
+
 
 def authorize_case(
     db: Session,
@@ -47,6 +49,7 @@ def authorize_case(
     )
     return updated
 
+
 def receive_case(
     db: Session,
     *,
@@ -64,6 +67,7 @@ def receive_case(
         expected_version=expected_version,
         audit_action="return.received",
     )
+
 
 def inspect_case(
     db: Session,
@@ -84,6 +88,7 @@ def inspect_case(
         values={"inspection_notes": notes},
         audit_action="return.inspected",
     )
+
 
 def reject_case(
     db: Session,
@@ -111,6 +116,7 @@ def reject_case(
         audit_action="return.rejected",
     )
 
+
 def reconcile_case(
     db: Session,
     *,
@@ -128,6 +134,7 @@ def reconcile_case(
         expected_version=expected_version,
         audit_action="return.reconciled",
     )
+
 
 def close_case(
     db: Session,
@@ -147,10 +154,19 @@ def close_case(
         audit_action="return.closed",
     )
 
-from returnops.services.refunds import approve_refund, retry_failed_refund
 
 __all__ = [
-    "approve_refund", "authorize_case", "case_view", "close_case", "create_case",
-    "get_case", "inspect_case", "list_cases", "receive_case", "reconcile_case",
-    "reject_case", "retry_failed_refund", "system_transition",
+    "approve_refund",
+    "authorize_case",
+    "case_view",
+    "close_case",
+    "create_case",
+    "get_case",
+    "inspect_case",
+    "list_cases",
+    "receive_case",
+    "reconcile_case",
+    "reject_case",
+    "retry_failed_refund",
+    "system_transition",
 ]
