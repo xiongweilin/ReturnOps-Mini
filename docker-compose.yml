@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: returnops
+      POSTGRES_PASSWORD: returnops
+      POSTGRES_DB: returnops
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U returnops -d returnops"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  migrate:
+    build: .
+    environment: &returnops-env
+      RETURNOPS_DATABASE_URL: postgresql+psycopg://returnops:returnops@postgres:5432/returnops
+      RETURNOPS_PAYMENT_BASE_URL: http://payment:8090
+      RETURNOPS_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+      RETURNOPS_PAYMENT_SIMULATION_MODE: normal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  api:
+    build: .
+    environment: *returnops-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    environment: *returnops-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      payment:
+        condition: service_started
+    command: ["python", "-m", "returnops.services.worker"]
+
+  payment:
+    build: .
+    environment:
+      FAKE_PAYMENT_DB: /data/fake-payment.db
+      FAKE_PAYMENT_WEBHOOK_URL: http://api:8000/v1/webhooks/payment
+      FAKE_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+    command: ["uvicorn", "fake_payment.app:app", "--host", "0.0.0.0", "--port", "8090"]
+    volumes:
+      - paymentdata:/data
+    ports:
+      - "8090:8090"
+
+volumes:
+  pgdata:
+  paymentdata:
