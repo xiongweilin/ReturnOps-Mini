@@ -56,7 +56,7 @@ def process_payment_webhook(db: Session, *, payload: dict[str, Any]) -> dict[str
         if existing is None:
             raise Conflict("webhook deduplication race could not be resolved") from None
         if existing.payload_hash != digest:
-            raise Conflict("provider reused webhook event id with a different payload")
+            raise Conflict("provider reused webhook event id with a different payload") from None
         return {"accepted": True, "replayed": True}
 
     key = str(payload.get("idempotency_key") or "")
