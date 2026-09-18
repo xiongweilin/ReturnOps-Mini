@@ -4,6 +4,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+mutants/
+.mutmut-cache/
 .venv/
 venv/
 .env

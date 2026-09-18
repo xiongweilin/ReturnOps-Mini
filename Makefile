@@ -1,4 +1,8 @@
-.PHONY: test unit integration migrate seed up down lint typecheck format format-check verify
+.PHONY: test unit integration migrate seed up down lint typecheck format format-check verify mutation
+
+mutation:
+	mutmut run
+	mutmut results
 
 lint:
 	ruff check .

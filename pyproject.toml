@@ -19,6 +19,7 @@ dependencies = [
 dev = [
   "hypothesis>=6.100",
   "mypy>=1.14",
+  "mutmut>=3.2",
   "pip-audit>=2.7",
   "pytest>=8.3",
   "pytest-cov>=6.0",
@@ -46,6 +47,20 @@ check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 strict_equality = true
+
+# 变异测试只覆盖 oracle 真正要守住的模块：状态机、幂等、支付、Webhook、对账。
+# 它不追求 mutation score，问的是"哪些变异活下来了、现有测试为什么抓不到"。
+# mutmut 需要 POSIX 环境，Windows 本地用 WSL 或直接看 CI 报告。
+[tool.mutmut]
+source_paths = [
+  "src/returnops/domain",
+  "src/returnops/services/idempotency.py",
+  "src/returnops/services/payments.py",
+  "src/returnops/services/webhooks.py",
+  "src/returnops/services/reconciliation.py",
+]
+pytest_add_cli_args_test_selection = ["tests", "-m", "not integration"]
+pytest_add_cli_args = ["-m", "not integration"]
 
 [build-system]
 requires = ["setuptools>=75"]
