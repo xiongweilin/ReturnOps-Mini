@@ -1,4 +1,16 @@
-.PHONY: test unit integration migrate seed up down lint typecheck format format-check verify mutation
+.PHONY: test unit integration migrate seed up down lint typecheck format format-check verify mutation faultlab-up faultlab-run faultlab-perf faultlab-down
+
+faultlab-up:
+	docker compose -f faultlab/docker-compose.faultlab.yml up -d --build
+
+faultlab-run:
+	uv run python faultlab/scenarios.py
+
+faultlab-perf:
+	uv run python faultlab/run_perf.py
+
+faultlab-down:
+	docker compose -f faultlab/docker-compose.faultlab.yml down -v
 
 mutation:
 	mutmut run

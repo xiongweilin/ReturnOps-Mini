@@ -208,3 +208,49 @@ jobs:
           name: mutation-report
           path: mutants/
           if-no-files-found: warn
+
+  faultlab:
+    name: fault lab (toxiproxy / postgres / k6)
+    # 真实边界上的失败实验与性能契约：不在 PR 上跑（重、且需要容器）。
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安装依赖
+        run: pip install -e ".[dev]"
+
+      - name: 启动 fault lab 栈
+        run: docker compose -f faultlab/docker-compose.faultlab.yml up -d --build
+
+      - name: 等待 PostgreSQL 就绪
+        run: |
+          for _ in {1..60}; do
+            if docker compose -f faultlab/docker-compose.faultlab.yml exec -T postgres pg_isready -U returnops -d returnops >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'postgres never became ready'
+          exit 1
+
+      - name: 故障场景（延迟 / ACK 丢失 / 连接重置 / 数据库变慢）
+        run: python faultlab/scenarios.py
+
+      - name: 性能契约（错误率、p95、p99、重复副作用）
+        run: python faultlab/run_perf.py
+
+      - name: 失败时打印服务日志
+        if: failure()
+        run: docker compose -f faultlab/docker-compose.faultlab.yml logs --no-color | tail -n 200
+
+      - name: 拆除 fault lab
+        if: always()
+        run: docker compose -f faultlab/docker-compose.faultlab.yml down -v

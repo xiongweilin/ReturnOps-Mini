@@ -1,0 +1,88 @@
+name: returnops-faultlab
+
+# 故障实验台：把结果未知、连接中断、上游变慢这类现实故障放回真实网络边界上验证。
+# 与 docker-compose.yml（日常开发栈）分开：这里额外引入 Toxiproxy，并让 API/worker 的支付调用必须穿过代理。
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: returnops
+      POSTGRES_PASSWORD: returnops
+      POSTGRES_DB: returnops
+    command: ["postgres", "-c", "track_io_timing=on"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U returnops -d returnops"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  payment:
+    build: ..
+    command: ["uvicorn", "fake_payment.app:app", "--host", "0.0.0.0", "--port", "8090"]
+    environment:
+      FAKE_PAYMENT_DB: /data/fake-payment.db
+      FAKE_PAYMENT_WEBHOOK_URL: http://api:8000/v1/webhooks/payment
+      FAKE_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+    ports:
+      - "8091:8090"
+    volumes:
+      - paymentdata:/data
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"
+      - "8090:8090"
+      - "5433:5433"
+    depends_on:
+      payment:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    build: ..
+    command: ["alembic", "upgrade", "head"]
+    environment: &returnops-env
+      RETURNOPS_DATABASE_URL: postgresql+psycopg://returnops:returnops@postgres:5432/returnops
+      RETURNOPS_PAYMENT_BASE_URL: http://toxiproxy:8090
+      RETURNOPS_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ..
+    environment: *returnops-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+
+  k6:
+    image: grafana/k6:0.55.0
+    profiles: ["perf"]
+    volumes:
+      - ./k6:/scripts:ro
+    environment:
+      BASE_URL: http://api:8000
+      ORG_ID: ${K6_ORG_ID:-}
+      ORG_TOKEN: ${K6_ORG_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_started
+    command: ["run", "/scripts/perf_contract.js"]
+
+volumes:
+  pgdata:
+  paymentdata:
+
