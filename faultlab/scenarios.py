@@ -275,17 +275,36 @@ def scenario_reset_request(session_factory, provider) -> None:
             attributes={"timeout": 0},
         )
         with session_factory() as db:
-            _, case, attempt = prepare_case(db, "reset")
+            seeded, case, attempt = prepare_case(db, "reset")
             dispatch_for_case(db, provider, attempt.id)
-            failed_attempt = attempt_row(db, case.id)
-            failed_case = db.get(ReturnCase, case.id)
-            assert failed_attempt.status is RefundAttemptStatus.FAILED, failed_attempt.status
-            assert failed_case.status is ReturnStatus.REFUND_PENDING, failed_case.status
+            first_attempt = attempt_row(db, case.id)
+            first_case = db.get(ReturnCase, case.id)
+
+            # 请求没有到达上游这一点是可断言的；但"本地把它归成未知还是可重试失败"取决于
+            # 平台与连接错误的具体类型，因此两种都必须被允许，只断言真正的不变量。
+            assert first_attempt.status in (
+                RefundAttemptStatus.FAILED,
+                RefundAttemptStatus.UNKNOWN,
+            ), first_attempt.status
+            assert first_case.status in (
+                ReturnStatus.REFUND_PENDING,
+                ReturnStatus.REFUND_UNKNOWN,
+            ), first_case.status
             assert provider_refund(attempt.provider_idempotency_key) is None, (
                 "a request that never reached the provider must not appear there"
             )
 
             clear_toxics("payment")
+            if first_attempt.status is RefundAttemptStatus.UNKNOWN:
+                # 未知必须由权威查询收敛：先确认不存在，再把它降级成可重试失败。
+                finance = seeded.contexts[Role.FINANCE][0]
+                outcome = reconcile_unknown_refund(
+                    db, context=finance, case_id=case.id, provider=provider
+                )
+                db.commit()
+                assert outcome.get("resolution") == "provider_confirmed_absent", outcome
+                assert attempt_row(db, case.id).status is RefundAttemptStatus.FAILED
+
             dispatch_when_ready(db, provider, attempt.id)
             final = db.get(ReturnCase, case.id)
             final_attempt = attempt_row(db, case.id)
