@@ -1,12 +1,107 @@
 name: ci
 
+# 分层门禁：每个 job 只对应一个明确的 failure class。
+#   hygiene      workflow/仓库卫生：actionlint、zizmor、gitleaks
+#   quality      代码契约：ruff format、ruff check、mypy、pytest（非 integration）
+#   dependencies 依赖解析结果的已知漏洞：pip-audit
+#   integration  真实 PostgreSQL 语义（SQLite 证明不了的部分）：alembic 回环 + pytest -m integration
+#   image        可交付镜像及其组成：docker build、syft SBOM、grype
+# PR 只跑确定且快速的确定性门禁；镜像与镜像漏洞扫描在 main、tag、手动调度上跑。
+# 依赖缓存故意不启用：本流程可在 tag 上触发并产出镜像/SBOM，zizmor 的 cache-poisoning 审计要求先消解发布型流程的缓存投毒面。
+
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  ACTIONLINT_VERSION: "1.7.12.24"
+  ZIZMOR_VERSION: "1.30.1"
+  GITLEAKS_VERSION: "8.30.1"
 
 jobs:
-  verify:
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: actionlint
+        run: pipx run --spec "actionlint-py==${ACTIONLINT_VERSION}" actionlint -color
+
+      - name: zizmor
+        run: pipx run "zizmor==${ZIZMOR_VERSION}" --persona=regular .github/workflows
+
+      - name: gitleaks
+        run: |
+          curl -sSfL -o "${RUNNER_TEMP}/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf "${RUNNER_TEMP}/gitleaks.tar.gz" -C "${RUNNER_TEMP}" gitleaks
+          "${RUNNER_TEMP}/gitleaks" git . --redact --no-banner --exit-code 1
+
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安装依赖
+        run: pip install -e ".[dev]"
+
+      - name: 格式 (ruff format --check)
+        run: ruff format --check .
+
+      - name: 静态检查 (ruff check)
+        run: ruff check .
+
+      - name: 类型检查 (mypy)
+        run: mypy
+
+      - name: 单元与 API 测试 (pytest -m "not integration")
+        run: pytest -q -m "not integration"
+
+  dependencies:
+    name: dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安装依赖
+        run: pip install -e ".[dev]"
+
+      # pip-audit 审计的是本仓库解析出的安装集；OSV-Scanner 需要 lockfile 才能枚举 Python 依赖，
+      # 本仓库当前没有 lockfile，因此用 pip-audit 承担同一个 failure class（依赖版本存在已知漏洞）。
+      # 不用 --strict：本仓库是可编辑安装，--strict 会把“跳过可编辑包”当成收集失败。
+      - name: 依赖漏洞扫描 (pip-audit)
+        run: pip-audit --skip-editable --progress-spinner off
+
+  integration:
+    name: integration (postgres)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -22,30 +117,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-
     env:
       RETURNOPS_DATABASE_URL: postgresql+psycopg://returnops:returnops@localhost:5432/returnops
       RETURNOPS_TEST_DATABASE_URL: postgresql+psycopg://returnops:returnops@localhost:5432/returnops
       RETURNOPS_PAYMENT_WEBHOOK_SECRET: ci-secret
-
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: '3.12'
-          cache: pip
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: 安装依赖
-        run: pip install -e '.[dev]'
-
-      - name: 静态检查
-        run: ruff check .
-
-      - name: 编译检查
-        run: python -m compileall -q src tests alembic
-
-      - name: 单元与 API 测试
-        run: pytest -q -m 'not integration'
+        run: pip install -e ".[dev]"
 
       - name: PostgreSQL 迁移回环
         run: |
@@ -55,3 +141,30 @@ jobs:
 
       - name: PostgreSQL 并发与时序测试
         run: pytest -q -m integration
+
+  image:
+    name: image (build / sbom / vulnerability)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 构建镜像
+        run: docker build --tag returnops-mini:ci .
+
+      - name: SBOM (syft)
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: returnops-mini:ci
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: 镜像漏洞扫描 (grype)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: returnops-mini:ci
+          severity-cutoff: high
+          fail-build: true
+

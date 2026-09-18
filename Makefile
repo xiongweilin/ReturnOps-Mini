@@ -1,4 +1,19 @@
-.PHONY: test unit integration migrate seed up down
+.PHONY: test unit integration migrate seed up down lint typecheck format format-check verify
+
+lint:
+	ruff check .
+
+typecheck:
+	mypy
+
+format:
+	ruff format .
+
+format-check:
+	ruff format --check .
+
+verify: lint typecheck format-check
+	pytest -q -m "not integration"
 
 unit:
 	pytest -q -m "not integration"
