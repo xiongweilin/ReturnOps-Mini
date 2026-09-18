@@ -42,6 +42,7 @@ from returnops.models import Base, RefundAttempt, ReturnCase  # noqa: E402
 from returnops.services.outbox import claim_batch  # noqa: E402
 from returnops.services.payments import PaymentProviderClient  # noqa: E402
 from returnops.services.reconciliation import reconcile_unknown_refund  # noqa: E402
+from returnops.services.returns import retry_failed_refund  # noqa: E402
 from returnops.services.worker import process_event  # noqa: E402
 from tests.conftest import seed_organization  # noqa: E402
 from tests.helpers import create_pending_refund  # noqa: E402
@@ -296,14 +297,25 @@ def scenario_reset_request(session_factory, provider) -> None:
 
             clear_toxics("payment")
             if first_attempt.status is RefundAttemptStatus.UNKNOWN:
-                # 未知必须由权威查询收敛：先确认不存在，再把它降级成可重试失败。
+                # 未知必须由权威查询收敛：确认不存在后把它降级成可重试失败。
+                # 注意：未知路径已经把原 outbox 事件标记为 done，所以必须重新规划
+                # （retry_failed_refund 会为同一个 attempt 重新入队），否则没有事件可 claim。
                 finance = seeded.contexts[Role.FINANCE][0]
                 outcome = reconcile_unknown_refund(
                     db, context=finance, case_id=case.id, provider=provider
                 )
                 db.commit()
                 assert outcome.get("resolution") == "provider_confirmed_absent", outcome
-                assert attempt_row(db, case.id).status is RefundAttemptStatus.FAILED
+                absent_attempt = attempt_row(db, case.id)
+                assert absent_attempt.status is RefundAttemptStatus.FAILED, absent_attempt.status
+                absent_case = db.get(ReturnCase, case.id)
+                retry_failed_refund(
+                    db,
+                    context=finance,
+                    case_id=case.id,
+                    expected_version=absent_case.version,
+                )
+                db.commit()
 
             dispatch_when_ready(db, provider, attempt.id)
             final = db.get(ReturnCase, case.id)
