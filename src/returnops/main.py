@@ -25,11 +25,15 @@ def _error(code: str, message: str, *, details: dict | list | None = None, statu
     )
 
 
-async def domain_error_handler(request: Request, exc: ReturnOpsError) -> JSONResponse:
+async def domain_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, ReturnOpsError):
+        raise exc
     return _error(exc.code, exc.message, details=exc.details, status=exc.status_code)
 
 
-async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, RequestValidationError):
+        raise exc
     fields = []
     for item in exc.errors():
         location = ".".join(str(part) for part in item.get("loc", ()) if part != "body") or "body"

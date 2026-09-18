@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
-from returnops.domain.states import ReturnStatus, Role, assert_actor_can_transition, assert_transition
+from returnops.domain.states import (
+    ReturnStatus,
+    Role,
+    assert_actor_can_transition,
+    assert_transition,
+)
 from returnops.errors import Conflict, NotFound, VersionConflict
 from returnops.models import ReturnCase, utcnow
 from returnops.services.audit import record_audit
 from returnops.services.tenancy import TenantContext, require_role
+
 
 def case_view(case: ReturnCase) -> dict[str, Any]:
     return {
@@ -31,6 +37,7 @@ def case_view(case: ReturnCase) -> dict[str, Any]:
         "updatedAt": case.updated_at.isoformat(),
     }
 
+
 def get_case(db: Session, *, context: TenantContext, case_id: uuid.UUID) -> ReturnCase:
     case = db.execute(
         select(ReturnCase).where(
@@ -42,6 +49,7 @@ def get_case(db: Session, *, context: TenantContext, case_id: uuid.UUID) -> Retu
         # Deliberately return 404 for cross-tenant ids to avoid leaking existence.
         raise NotFound("return case not found")
     return case
+
 
 def list_cases(
     db: Session,
@@ -55,6 +63,7 @@ def list_cases(
         stmt = stmt.where(ReturnCase.status == status)
     stmt = stmt.order_by(ReturnCase.created_at.desc()).limit(max(1, min(limit, 200)))
     return list(db.execute(stmt).scalars().all())
+
 
 def create_case(
     db: Session,
@@ -93,6 +102,7 @@ def create_case(
     )
     return case
 
+
 def _cas_transition(
     db: Session,
     *,
@@ -129,7 +139,8 @@ def _cas_transition(
         )
         .values(**update_values)
     )
-    if result.rowcount != 1:
+    affected = cast(CursorResult[Any], result).rowcount
+    if affected != 1:
         raise VersionConflict("return case changed concurrently; reload and retry")
     db.flush()
     db.expire(case)
@@ -147,6 +158,7 @@ def _cas_transition(
         metadata=metadata,
     )
     return case
+
 
 def system_transition(
     db: Session,

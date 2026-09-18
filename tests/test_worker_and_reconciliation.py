@@ -41,7 +41,9 @@ def test_successful_dispatch_moves_case_to_refunded(db, seeded) -> None:
     process_event(db, event, provider=PaymentProviderClient(transport=httpx.MockTransport(handler)))
     db.commit()
     refreshed = db.get(ReturnCase, case.id)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     assert refreshed.status is ReturnStatus.REFUNDED
     assert attempt.status is RefundAttemptStatus.SUCCEEDED
     assert attempt.provider_ref == "rf_ok"
@@ -58,7 +60,9 @@ def test_network_timeout_becomes_unknown_and_is_not_rescheduled(db, seeded) -> N
     process_event(db, event, provider=PaymentProviderClient(transport=httpx.MockTransport(handler)))
     db.commit()
     refreshed = db.get(ReturnCase, case.id)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     outbox = db.get(OutboxEvent, event.id)
     assert refreshed.status is ReturnStatus.REFUND_UNKNOWN
     assert attempt.status is RefundAttemptStatus.UNKNOWN
@@ -111,7 +115,9 @@ def test_safe_retry_exhaustion_routes_to_manual_reconciliation(db, seeded, monke
     process_event(db, event, provider=PaymentProviderClient(transport=httpx.MockTransport(handler)))
     db.commit()
     refreshed = db.get(ReturnCase, case.id)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     outbox = db.get(OutboxEvent, event.id)
     assert refreshed.status is ReturnStatus.NEEDS_RECONCILIATION
     assert attempt.status is RefundAttemptStatus.FAILED
@@ -147,7 +153,9 @@ def test_unknown_requires_authoritative_lookup_before_retry(db, seeded) -> None:
     assert outcome["resolution"] == "provider_confirmed_absent"
     db.flush()
     case = db.get(ReturnCase, case.id)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     assert case.status is ReturnStatus.NEEDS_RECONCILIATION
     assert attempt.status is RefundAttemptStatus.FAILED
 
@@ -158,7 +166,10 @@ def test_unknown_requires_authoritative_lookup_before_retry(db, seeded) -> None:
         expected_version=case.version,
     )
     assert retried.status is ReturnStatus.REFUND_PENDING
-    assert attempt.status is RefundAttemptStatus.PLANNED
+    retried_attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
+    assert retried_attempt.status is RefundAttemptStatus.PLANNED
 
 
 def test_expired_dispatching_attempt_can_be_recovered_with_same_provider_key(db, seeded) -> None:
@@ -256,7 +267,9 @@ def test_reconciliation_does_not_treat_non_success_provider_row_as_absent(db, se
     assert db.get(ReturnCase, case.id).status is ReturnStatus.NEEDS_RECONCILIATION
 
 
-def test_conflicting_provider_success_is_dead_lettered_for_manual_reconciliation(db, seeded) -> None:
+def test_conflicting_provider_success_is_dead_lettered_for_manual_reconciliation(
+    db, seeded
+) -> None:
     case = create_pending_refund(db, seeded)
     db.commit()
     event = _claim_one(db)

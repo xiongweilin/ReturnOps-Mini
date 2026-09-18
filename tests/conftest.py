@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import pytest
@@ -28,7 +29,9 @@ def _enable_sqlite_fk(dbapi_connection, connection_record) -> None:
 
 @pytest.fixture
 def session_factory(tmp_path):
-    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite+pysqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False}
+    )
     event.listen(engine, "connect", _enable_sqlite_fk)
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
@@ -39,7 +42,7 @@ def session_factory(tmp_path):
 
 
 @pytest.fixture
-def db(session_factory) -> Session:
+def db(session_factory: sessionmaker[Session]) -> Iterator[Session]:
     with session_factory() as session:
         yield session
         session.rollback()
@@ -56,12 +59,18 @@ def seed_organization(db: Session, name: str = "Acme") -> SeededOrg:
     for role, count in role_counts.items():
         for index in range(count):
             token = f"token-{name}-{role.value}-{index}"
-            user = User(email=f"{role.value}-{index}@{name.lower()}.test", display_name=f"{role.value}-{index}", api_token_hash=hash_token(token))
+            user = User(
+                email=f"{role.value}-{index}@{name.lower()}.test",
+                display_name=f"{role.value}-{index}",
+                api_token_hash=hash_token(token),
+            )
             db.add(user)
             db.flush()
             db.add(Membership(organization_id=organization.id, user_id=user.id, role=role))
             users[role].append(user)
-            contexts[role].append(TenantContext(organization_id=organization.id, user_id=user.id, role=role))
+            contexts[role].append(
+                TenantContext(organization_id=organization.id, user_id=user.id, role=role)
+            )
             tokens[role].append(token)
     db.flush()
     return SeededOrg(organization=organization, users=users, contexts=contexts, tokens=tokens)

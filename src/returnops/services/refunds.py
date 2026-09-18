@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
 from returnops.config import get_settings
-from returnops.domain.states import ApprovalDecision, ApprovalKind, ReturnStatus, Role, assert_approved_amount
+from returnops.domain.states import (
+    ApprovalDecision,
+    ApprovalKind,
+    ReturnStatus,
+    Role,
+    assert_approved_amount,
+)
 from returnops.errors import Conflict, PermissionDenied, VersionConflict
 from returnops.models import Approval, RefundAttempt, ReturnCase, utcnow
 from returnops.services.audit import record_audit
@@ -45,7 +52,9 @@ def approve_refund(
     if case.status is not ReturnStatus.INSPECTED:
         raise Conflict("refund approval requires inspected status")
     if expected_version != case.version:
-        raise VersionConflict(f"expected version {expected_version}, current version is {case.version}")
+        raise VersionConflict(
+            f"expected version {expected_version}, current version is {case.version}"
+        )
     assert_approved_amount(case.requested_amount_minor, approved_amount_minor)
 
     approvals = _refund_approvals(db, case.id)
@@ -73,7 +82,8 @@ def approve_refund(
                 )
                 .values(version=expected_version + 1, updated_at=utcnow())
             )
-            if result.rowcount != 1:
+            affected = cast(CursorResult[Any], result).rowcount
+            if affected != 1:
                 raise VersionConflict("return case changed concurrently; reload and retry")
             db.add(first)
             db.flush()
@@ -179,7 +189,9 @@ def retry_failed_refund(
     if case.status is not ReturnStatus.NEEDS_RECONCILIATION:
         raise Conflict("retry requires needs_reconciliation status")
     if expected_version != case.version:
-        raise VersionConflict(f"expected version {expected_version}, current version is {case.version}")
+        raise VersionConflict(
+            f"expected version {expected_version}, current version is {case.version}"
+        )
     attempt = db.execute(
         select(RefundAttempt).where(
             RefundAttempt.return_case_id == case.id,
@@ -189,7 +201,9 @@ def retry_failed_refund(
     if attempt is None:
         raise Conflict("refund attempt missing")
     if attempt.status.value != "failed":
-        raise Conflict("only a known failed refund may be retried; unknown outcomes must be reconciled")
+        raise Conflict(
+            "only a known failed refund may be retried; unknown outcomes must be reconciled"
+        )
 
     attempt.status = type(attempt.status).PLANNED
     attempt.last_error = None
