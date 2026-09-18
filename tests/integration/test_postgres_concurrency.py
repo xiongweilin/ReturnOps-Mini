@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from returnops.domain.states import ReturnStatus, Role
-from returnops.errors import IdempotencyConflict, VersionConflict
+from returnops.errors import Conflict, IdempotencyConflict, VersionConflict
 from returnops.models import Approval, Membership, Organization, ReturnCase, User
 from returnops.security import hash_token
 from returnops.services.idempotency import claim, complete
@@ -15,6 +15,7 @@ from returnops.services.returns import approve_refund
 from returnops.services.tenancy import TenantContext
 
 pytestmark = pytest.mark.integration
+
 
 def test_twenty_concurrent_same_key_requests_replay_one_response(pg_factory) -> None:
     with pg_factory() as db:
@@ -66,7 +67,9 @@ def test_twenty_concurrent_same_key_requests_replay_one_response(pg_factory) -> 
 def test_two_concurrent_finance_approvals_have_one_cas_winner(pg_factory) -> None:
     with pg_factory() as db:
         org = Organization(name="CAS")
-        service = User(email="service@cas.test", display_name="service", api_token_hash=hash_token("s"))
+        service = User(
+            email="service@cas.test", display_name="service", api_token_hash=hash_token("s")
+        )
         fa = User(email="fa@cas.test", display_name="fa", api_token_hash=hash_token("fa"))
         fb = User(email="fb@cas.test", display_name="fb", api_token_hash=hash_token("fb"))
         db.add_all([org, service, fa, fb])
@@ -115,6 +118,12 @@ def test_two_concurrent_finance_approvals_have_one_cas_winner(pg_factory) -> Non
             except VersionConflict:
                 db.rollback()
                 outcome = "version_conflict"
+            except Conflict:
+                # 落败方可能在到达 version CAS 之前就被拒绝：它重读审批时已经看到胜者提交的行，
+                # 于是走 "refund is already approved" 分支。这同样是正确拒绝。
+                # 只按异常类型断言会把 oracle 绑死在时序上，因此改为断言真正的不变量。
+                db.rollback()
+                outcome = "already_approved"
             with lock:
                 outcomes.append(outcome)
 
@@ -124,7 +133,20 @@ def test_two_concurrent_finance_approvals_have_one_cas_winner(pg_factory) -> Non
     b.start()
     a.join(timeout=20)
     b.join(timeout=20)
-    assert sorted(outcomes) == ["ok", "version_conflict"]
+
+    # 不变量：恰好一个审批生效，只落一条审批记录，案件只前进一次。
+    assert len(outcomes) == 2
+    assert outcomes.count("ok") == 1
+    with pg_factory() as db:
+        approvals = (
+            db.execute(select(Approval).where(Approval.return_case_id == case_id)).scalars().all()
+        )
+        assert len(approvals) == 1
+        assert approvals[0].user_id in {fa_id, fb_id}
+        stored = db.get(ReturnCase, case_id)
+        assert stored is not None
+        assert stored.status is ReturnStatus.REFUND_PENDING
+        assert stored.approved_amount_minor == 1000
 
 
 def test_concurrent_high_value_first_approval_has_one_first_approver(pg_factory) -> None:
@@ -134,7 +156,7 @@ def test_concurrent_high_value_first_approval_has_one_first_approver(pg_factory)
             email="service-high@cas.test",
             display_name="service",
             api_token_hash=hash_token("s-high"),
-         )
+        )
         fa = User(
             email="fa-high@cas.test",
             display_name="fa",
@@ -252,5 +274,3 @@ def test_concurrent_same_key_different_body_returns_domain_conflict(pg_factory) 
     a.join(timeout=20)
     b.join(timeout=20)
     assert sorted(outcomes) == ["idempotency_conflict", "ok"]
-
-
