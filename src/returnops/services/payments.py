@@ -24,7 +24,9 @@ class ProviderRefundResult:
 
 
 class PaymentProviderClient:
-    def __init__(self, base_url: str | None = None, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(
+        self, base_url: str | None = None, transport: httpx.BaseTransport | None = None
+    ) -> None:
         self.base_url = (base_url or get_settings().payment_base_url).rstrip("/")
         self.transport = transport
 

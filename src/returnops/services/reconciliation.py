@@ -55,7 +55,10 @@ def reconcile_unknown_refund(
                 evidence=observed.raw,
                 evidence_source="manual_provider_lookup",
             )
-            return {"resolution": "provider_confirmed_success", "providerRef": observed.provider_ref}
+            return {
+                "resolution": "provider_confirmed_success",
+                "providerRef": observed.provider_ref,
+            }
 
         # "存在但不是成功" 与 "权威查询确认不存在" 是不同事实。
         # 对未知/处理中等非终态不能擅自推导成失败并开放重试。

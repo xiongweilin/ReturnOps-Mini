@@ -74,7 +74,11 @@ def returns_list(
     status: ReturnStatus | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict[str, Any]:
-    return {"items": [case_view(row) for row in list_cases(db, context=context, status=status, limit=limit)]}
+    return {
+        "items": [
+            case_view(row) for row in list_cases(db, context=context, status=status, limit=limit)
+        ]
+    }
 
 
 @router.get("/returns/{case_id}")

@@ -91,7 +91,9 @@ def assert_transition(current: ReturnStatus, target: ReturnStatus) -> None:
         raise InvalidTransition(f"cannot move return from {current.value} to {target.value}")
 
 
-def assert_actor_can_transition(role: Role | None, target: ReturnStatus, *, system: bool = False) -> None:
+def assert_actor_can_transition(
+    role: Role | None, target: ReturnStatus, *, system: bool = False
+) -> None:
     if target in SYSTEM_TARGETS:
         if not system:
             raise PermissionDenied(f"{target.value} is a system-owned transition")

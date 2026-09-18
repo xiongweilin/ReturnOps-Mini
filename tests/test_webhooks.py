@@ -12,7 +12,9 @@ from .helpers import create_pending_refund
 
 def test_success_webhook_is_deduplicated(db, seeded) -> None:
     case = create_pending_refund(db, seeded)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     payload = {
         "event_id": "evt-1",
         "refund_id": "rf-webhook",
@@ -32,7 +34,9 @@ def test_success_webhook_is_deduplicated(db, seeded) -> None:
 
 def test_reused_event_id_with_changed_body_is_rejected(db, seeded) -> None:
     case = create_pending_refund(db, seeded)
-    attempt = db.execute(select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)).scalar_one()
+    attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == case.id)
+    ).scalar_one()
     payload = {
         "event_id": "evt-conflict",
         "refund_id": "rf-a",

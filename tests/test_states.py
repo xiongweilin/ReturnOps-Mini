@@ -2,12 +2,27 @@ from __future__ import annotations
 
 import pytest
 
-from returnops.domain.states import ReturnStatus, Role, assert_actor_can_transition, assert_transition
+from returnops.domain.states import (
+    ReturnStatus,
+    Role,
+    assert_actor_can_transition,
+    assert_transition,
+)
 from returnops.errors import InvalidTransition, PermissionDenied
 
 
 def test_declared_happy_path_is_legal() -> None:
-    path = [ReturnStatus.REQUESTED, ReturnStatus.AUTHORIZED, ReturnStatus.RECEIVED, ReturnStatus.INSPECTED, ReturnStatus.REFUND_APPROVED, ReturnStatus.REFUND_PENDING, ReturnStatus.REFUNDED, ReturnStatus.RECONCILED, ReturnStatus.CLOSED]
+    path = [
+        ReturnStatus.REQUESTED,
+        ReturnStatus.AUTHORIZED,
+        ReturnStatus.RECEIVED,
+        ReturnStatus.INSPECTED,
+        ReturnStatus.REFUND_APPROVED,
+        ReturnStatus.REFUND_PENDING,
+        ReturnStatus.REFUNDED,
+        ReturnStatus.RECONCILED,
+        ReturnStatus.CLOSED,
+    ]
     for current, target in zip(path, path[1:]):
         assert_transition(current, target)
 

@@ -60,9 +60,7 @@ def _db() -> Iterator[sqlite3.Connection]:
 
 def _row(key: str) -> dict | None:
     with _db() as conn:
-        row = conn.execute(
-            "SELECT * FROM refunds WHERE idempotency_key = ?", (key,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM refunds WHERE idempotency_key = ?", (key,)).fetchone()
         return None if row is None else dict(row)
 
 

@@ -44,7 +44,9 @@ class Organization(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class User(Base):
@@ -55,7 +57,9 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     api_token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class Membership(Base):
@@ -66,10 +70,14 @@ class Membership(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organization.id"), nullable=False
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_account.id"), nullable=False)
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
     organization: Mapped[Organization] = relationship()
     user: Mapped[User] = relationship()
@@ -83,7 +91,9 @@ class ReturnCase(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organization.id"), nullable=False
+    )
     case_ref: Mapped[str] = mapped_column(String(80), nullable=False)
     external_order_ref: Mapped[str] = mapped_column(String(120), nullable=False)
     customer_ref: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -95,10 +105,14 @@ class ReturnCase(Base):
         Enum(ReturnStatus, native_enum=False), default=ReturnStatus.REQUESTED, nullable=False
     )
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_account.id"), nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("user_account.id"), nullable=False
+    )
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     inspection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
@@ -112,16 +126,22 @@ class Approval(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organization.id"), nullable=False
+    )
     return_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("return_case.id"), nullable=False)
-    kind: Mapped[ApprovalKind] = mapped_column(Enum(ApprovalKind, native_enum=False), nullable=False)
+    kind: Mapped[ApprovalKind] = mapped_column(
+        Enum(ApprovalKind, native_enum=False), nullable=False
+    )
     decision: Mapped[ApprovalDecision] = mapped_column(
         Enum(ApprovalDecision, native_enum=False), nullable=False
     )
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_account.id"), nullable=False)
     amount_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class RefundAttempt(Base):
@@ -133,19 +153,25 @@ class RefundAttempt(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organization.id"), nullable=False
+    )
     return_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("return_case.id"), nullable=False)
     provider_idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
     amount_minor: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     status: Mapped[RefundAttemptStatus] = mapped_column(
-        Enum(RefundAttemptStatus, native_enum=False), default=RefundAttemptStatus.PLANNED, nullable=False
+        Enum(RefundAttemptStatus, native_enum=False),
+        default=RefundAttemptStatus.PLANNED,
+        nullable=False,
     )
     provider_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
     dispatch_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
@@ -160,25 +186,33 @@ class WebhookReceipt(Base):
     event_id: Mapped[str] = mapped_column(String(200), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class AuditEvent(Base):
     __tablename__ = "audit_event"
-    __table_args__ = (Index("ix_audit_org_resource", "organization_id", "resource_type", "resource_id"),)
+    __table_args__ = (
+        Index("ix_audit_org_resource", "organization_id", "resource_type", "resource_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organization.id"), nullable=True
     )
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user_account.id"), nullable=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("user_account.id"), nullable=True
+    )
     action: Mapped[str] = mapped_column(String(120), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(80), nullable=False)
     resource_id: Mapped[str] = mapped_column(String(120), nullable=False)
     before_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     after_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class IdempotencyRecord(Base):
@@ -188,12 +222,16 @@ class IdempotencyRecord(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organization.id"), nullable=False
+    )
     scope: Mapped[str] = mapped_column(String(120), nullable=False)
     key: Mapped[str] = mapped_column(String(200), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     response_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
 
 class OutboxEvent(Base):
@@ -210,10 +248,14 @@ class OutboxEvent(Base):
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )

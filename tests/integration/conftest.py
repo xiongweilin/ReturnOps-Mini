@@ -19,7 +19,9 @@ def pg_factory():
     schema = f"returnops_it_{uuid.uuid4().hex[:10]}"
     with admin.begin() as conn:
         conn.execute(text(f'CREATE SCHEMA "{schema}"'))
-    engine = create_engine(url, pool_pre_ping=True, connect_args={"options": f"-csearch_path={schema}"})
+    engine = create_engine(
+        url, pool_pre_ping=True, connect_args={"options": f"-csearch_path={schema}"}
+    )
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
     try:

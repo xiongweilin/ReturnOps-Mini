@@ -19,7 +19,9 @@ DEMO_USERS = (
 
 def main() -> None:
     with SessionLocal() as db:
-        existing = db.execute(select(Organization).where(Organization.name == "Demo Store")).scalar_one_or_none()
+        existing = db.execute(
+            select(Organization).where(Organization.name == "Demo Store")
+        ).scalar_one_or_none()
         if existing is not None:
             print(f"Demo Store already exists: organization_id={existing.id}")
             return
