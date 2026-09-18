@@ -166,5 +166,7 @@ jobs:
         with:
           image: returnops-mini:ci
           severity-cutoff: high
+          # 只让已有修复版本的 high/critical 阻塞：基础镜像中被 Debian 标记为不会修复的漏洞
+          # 本仓库无法处置，它们仍完整出现在 SBOM 中，只是不作为本仓库的失败类。
+          only-fixed: true
           fail-build: true
-
