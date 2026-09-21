@@ -1,5 +1,10 @@
 # ReturnOps Mini
 
+[![CI](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml/badge.svg)](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white&style=flat-square)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-required-4169E1?logo=postgresql&logoColor=white&style=flat-square)
+![License](https://img.shields.io/github/license/xiongweilin/ReturnOps-Mini?style=flat-square)
+
 ReturnOps Mini 是一个刻意控制规模、但保留真实工程风险的多租户退货退款 SaaS。它不是生产级电商平台，也不是“展示 AI 能写多少代码”的样板，而是一个用于训练**工程判断力**的小型完整产品。
 
 这个仓库从 `commerce-orchestrator` 与 `administrative-orchestrator` 中抽取了最值得学习的可靠性问题：租户隔离、角色权限、状态机、乐观并发控制、幂等、Outbox、外部副作用、结果未知、Webhook 去重、对账、迁移与审计。与此同时，它主动删除了 DBOS、Kafka、Redis、通用工作流引擎、CQRS 等会遮蔽基本机制的基础设施。
