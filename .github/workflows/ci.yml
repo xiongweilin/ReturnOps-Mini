@@ -169,6 +169,7 @@ jobs:
           # 本仓库无法处置，它们仍完整出现在 SBOM 中，只是不作为本仓库的失败类。
           only-fixed: true
           fail-build: true
+          output-format: table
 
   mutation:
     name: mutation (diagnostic)
