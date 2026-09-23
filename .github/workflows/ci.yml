@@ -6,7 +6,7 @@ name: ci
 #   dependencies 依赖解析结果的已知漏洞：pip-audit
 #   integration  真实 PostgreSQL 语义（SQLite 证明不了的部分）：alembic 回环 + pytest -m integration
 #   image        可交付镜像及其组成：docker build、syft SBOM、grype
-# PR 只跑确定且快速的确定性门禁；镜像与镜像漏洞扫描在 main、tag、手动调度上跑。
+# PR 也运行镜像/SBOM/漏洞门禁，避免 fixable High/Critical 在 merge 后才把 main 打红。
 # 依赖缓存故意不启用：本流程可在 tag 上触发并产出镜像/SBOM，zizmor 的 cache-poisoning 审计要求先消解发布型流程的缓存投毒面。
 
 on:
