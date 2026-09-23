@@ -144,7 +144,6 @@ jobs:
 
   image:
     name: image (build / sbom / vulnerability)
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,7 +174,6 @@ jobs:
     name: mutation (diagnostic)
     # 变异测试不是合并门禁：存活变异才是信号（哪个 oracle 抓不到），分数不是目标。
     # mutmut 需要 POSIX 环境，Windows 本地只能用 WSL，因此由 CI 承担。
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -212,7 +210,6 @@ jobs:
   faultlab:
     name: fault lab (toxiproxy / postgres / k6)
     # 真实边界上的失败实验与性能契约：不在 PR 上跑（重、且需要容器）。
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
