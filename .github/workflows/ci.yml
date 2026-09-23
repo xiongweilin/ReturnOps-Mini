@@ -6,7 +6,7 @@ name: ci
 #   dependencies 依赖解析结果的已知漏洞：pip-audit
 #   integration  真实 PostgreSQL 语义（SQLite 证明不了的部分）：alembic 回环 + pytest -m integration
 #   image        可交付镜像及其组成：docker build、syft SBOM、grype
-# PR 只跑确定且快速的确定性门禁；镜像与镜像漏洞扫描在 main、tag、手动调度上跑。
+# PR 也运行镜像/SBOM/漏洞门禁，避免 fixable High/Critical 在 merge 后才把 main 打红。
 # 依赖缓存故意不启用：本流程可在 tag 上触发并产出镜像/SBOM，zizmor 的 cache-poisoning 审计要求先消解发布型流程的缓存投毒面。
 
 on:
@@ -144,7 +144,6 @@ jobs:
 
   image:
     name: image (build / sbom / vulnerability)
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -170,12 +169,12 @@ jobs:
           # 本仓库无法处置，它们仍完整出现在 SBOM 中，只是不作为本仓库的失败类。
           only-fixed: true
           fail-build: true
+          output-format: table
 
   mutation:
     name: mutation (diagnostic)
     # 变异测试不是合并门禁：存活变异才是信号（哪个 oracle 抓不到），分数不是目标。
     # mutmut 需要 POSIX 环境，Windows 本地只能用 WSL，因此由 CI 承担。
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -212,7 +211,6 @@ jobs:
   faultlab:
     name: fault lab (toxiproxy / postgres / k6)
     # 真实边界上的失败实验与性能契约：不在 PR 上跑（重、且需要容器）。
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
