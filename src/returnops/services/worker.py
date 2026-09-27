@@ -46,12 +46,12 @@ def process_event(db: Session, event, *, provider: PaymentProviderClient) -> Non
         mark_done(event)
         return
     if attempt.status.value == "unknown":
-        # This is the central safety rule: an ambiguous external result is not retried.
+        # 核心安全规则：ambiguous external result 不能自动重试。
         mark_done(event)
         return
 
     mark_dispatching(db, attempt)
-    db.commit()  # Persist "we attempted" before crossing the network boundary.
+    db.commit()  # 在跨越网络边界前先持久化“已经尝试过”。
 
     try:
         result = provider.create_refund(
@@ -61,9 +61,9 @@ def process_event(db: Session, event, *, provider: PaymentProviderClient) -> Non
             return_case_id=attempt.return_case_id,
         )
     except ExternalSystemFailure as exc:
-        # Fake provider's 503 contract means the request was rejected before processing.
-        # This is explicitly safe to retry. Real integrations must earn this assumption
-        # from their provider contract instead of copying it blindly.
+        # 模拟 provider 的 503 contract 表示请求在处理前已被拒绝。
+        # 这里明确允许安全重试。真实 integration 必须从其 provider contract
+        # 中证明这一前提，而不能直接照搬。
         db.refresh(event)
         db.refresh(attempt)
         mark_known_failure(db, attempt, error=str(exc))
@@ -76,13 +76,13 @@ def process_event(db: Session, event, *, provider: PaymentProviderClient) -> Non
             reschedule(event, error=str(exc), delay_seconds=_backoff(event.attempts))
         return
     except (httpx.TimeoutException, httpx.NetworkError) as exc:
-        # Once bytes may have crossed the network, absence of an ACK does not prove
-        # failure. Record UNKNOWN and stop automatic retries.
+        # 一旦字节可能已经跨过网络边界，缺少 ACK 并不能证明
+        # 失败。必须记录 UNKNOWN，并停止自动重试。
         db.refresh(event)
         db.refresh(attempt)
-        # A webhook may have committed provider success while this HTTP request was
-        # still waiting for an ACK. Fresh database evidence wins over the local
-        # timeout; never downgrade SUCCEEDED back to UNKNOWN.
+        # 在这个 HTTP request 仍等待 ACK 时，webhook 可能已经提交
+        # provider success。更新的数据库 evidence 优先于本地
+        # timeout；绝不能把 SUCCEEDED 降级回 UNKNOWN。
         if attempt.status.value != "succeeded":
             mark_unknown(db, attempt, error=f"{type(exc).__name__}: {exc}")
         mark_done(event)
@@ -106,10 +106,10 @@ def process_event(db: Session, event, *, provider: PaymentProviderClient) -> Non
             evidence_source="synchronous_provider_response",
         )
     except Conflict as exc:
-        # The provider claims success but the evidence contradicts the durable
-        # local intent (for example amount/currency/reference mismatch). This is
-        # neither a safe retry nor a success: preserve ambiguity and stop
-        # automatic dispatch until a human/provider investigation resolves it.
+        # Provider 声称成功，但 evidence 与 durable
+        # local intent 冲突（例如 amount/currency/reference 不一致）。这既
+        # 不是安全重试，也不是成功：保持 ambiguity，并停止
+        # 自动 dispatch，直到人工/provider 调查解决。
         mark_unknown(db, attempt, error=f"provider evidence conflict: {exc}")
         mark_manual_reconciliation_needed(
             db,
