@@ -93,10 +93,10 @@ def _load_case_for_attempt(db: Session, attempt: RefundAttempt) -> ReturnCase:
 
 
 def mark_dispatching(db: Session, attempt: RefundAttempt) -> None:
-    # DISPATCHING is accepted for lease recovery. A previous worker may have
-    # committed the intent before crashing at any point around the network call.
-    # Re-dispatch is safe only because the provider contract requires the same
-    # stable idempotency key to identify the same logical refund.
+    # 为了 lease recovery 可以接受 DISPATCHING。之前的 worker 可能已
+    # 提交 intent，然后在网络调用前后任意位置崩溃。
+    # 只有因为 provider contract 要求使用相同的
+    # stable idempotency key 标识同一笔逻辑退款，重新 dispatch 才是安全的。
     if attempt.status not in {
         RefundAttemptStatus.PLANNED,
         RefundAttemptStatus.FAILED,
@@ -166,9 +166,9 @@ def mark_success(
     evidence: dict[str, Any],
     evidence_source: str,
 ) -> None:
-    # Provider evidence is not trusted merely because it says "succeeded".
-    # Check the parts of the external fact that ReturnOps can independently
-    # compare with its own durable refund intent.
+    # 不能仅因为 provider evidence 声称 "succeeded" 就信任它。
+    # 必须检查 ReturnOps 能够独立
+    # 与自身 durable refund intent 对比的 external fact 部分。
     if not provider_ref:
         raise Conflict("provider success is missing refund reference")
     evidence_amount = evidence.get("amount_minor")
