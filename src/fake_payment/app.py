@@ -109,8 +109,8 @@ def _send_webhook(row: dict, *, duplicate: bool = False) -> None:
             if duplicate:
                 client.post(WEBHOOK_URL, headers={"X-Webhook-Secret": WEBHOOK_SECRET}, json=payload)
     except Exception:
-        # This fake provider deliberately does not make refund success depend on
-        # webhook delivery. A real provider would have its own durable retry queue.
+        # 这个模拟 provider 刻意不让退款成功依赖
+        # webhook 投递。真实 provider 应拥有自己的 durable retry queue。
         pass
 
 
@@ -136,15 +136,15 @@ def create_refund(
     row = _store(idempotency_key, body)
 
     if simulate == "timeout_after_processing":
-        # Persist success first, then withhold the ACK long enough for ReturnOps to
-        # time out. The caller must classify the result as UNKNOWN and reconcile.
+        # 先持久化成功，再故意延迟 ACK，直到 ReturnOps
+        # 超时。调用方必须把结果归类为 UNKNOWN 并执行 reconciliation。
         background.add_task(_send_webhook, row)
         time.sleep(5)
     elif simulate == "webhook_before_timeout":
-        # Deliberately race two evidence paths: send a success webhook from a
-        # separate thread before the original HTTP request finally times out.
-        # ReturnOps must keep the fresher committed SUCCEEDED fact and must not
-        # downgrade it to UNKNOWN in the timeout handler.
+        # 刻意制造两条 evidence path 的竞争：在原始 HTTP 请求
+        # 最终超时前，由独立线程发送 success webhook。
+        # ReturnOps 必须保留更新的、已提交的 SUCCEEDED fact，不能
+        # 在 timeout handler 中把它降级为 UNKNOWN。
         threading.Thread(target=_send_webhook, args=(row,), daemon=True).start()
         time.sleep(5)
     elif simulate == "duplicate_webhook":
