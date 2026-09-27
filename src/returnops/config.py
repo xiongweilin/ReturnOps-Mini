@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 0.5
     worker_lease_seconds: int = 30
     max_dispatch_attempts: int = 3
-    high_value_threshold: int = 50000  # minor units, e.g. cents
+    high_value_threshold: int = 50000  # 最小货币单位，例如美分
 
 
 @lru_cache
