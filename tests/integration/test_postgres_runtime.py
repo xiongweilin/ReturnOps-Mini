@@ -147,8 +147,8 @@ def test_webhook_commit_wins_over_later_http_timeout_across_transactions(pg_fact
         event = worker_db.get(OutboxEvent, event_id)
 
         def handler(request: httpx.Request) -> httpx.Response:
-            # Simulate a webhook handled and committed by another API transaction
-            # while the original provider request is still waiting for its ACK.
+            # 模拟由另一个 API transaction 处理并提交 webhook，
+            # 此时原始 provider request 仍在等待 ACK。
             with pg_factory() as webhook_db:
                 other_attempt = webhook_db.get(RefundAttempt, attempt_id)
                 assert other_attempt is not None
