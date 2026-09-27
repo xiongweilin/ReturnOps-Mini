@@ -71,9 +71,9 @@ def process_payment_webhook(db: Session, *, payload: dict[str, Any]) -> dict[str
         provider_ref = str(payload.get("refund_id") or "")
         if not provider_ref:
             raise Conflict("successful webhook missing refund_id")
-        # Always validate success evidence, even when the attempt was already
-        # confirmed. A later event with a different refund reference or amount
-        # is a provider inconsistency, not a harmless duplicate.
+        # 即使 attempt 已被确认，也始终验证 success evidence。
+        # 后续 event 如果带来不同的 refund reference 或 amount，
+        # 属于 provider inconsistency，而不是无害重复。
         mark_success(
             db,
             attempt,
