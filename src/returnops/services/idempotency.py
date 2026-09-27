@@ -39,9 +39,9 @@ def _validate_existing(
     if existing.request_hash != request_hash:
         raise IdempotencyConflict("idempotency key was already used with a different request")
     if existing.response_json is None:
-        # A committed row is never intentionally left incomplete. This state therefore
-        # indicates corruption or an unsupported external writer, not a request that
-        # callers should silently replay.
+        # 已提交的记录绝不会被有意留在不完整状态，因此该状态
+        # 表示数据损坏或存在不受支持的外部写入方，而不是一个
+        # 调用方可以静默重放的请求。
         raise Conflict("idempotency record exists without a completed response")
     return IdempotencyClaim(record=None, replay=dict(existing.response_json))
 
@@ -76,11 +76,11 @@ def claim(
         response_json=None,
     )
 
-    # The savepoint is important. On PostgreSQL, concurrent inserts on the unique
-    # (org, scope, key) constraint serialize here. The loser waits for the winner's
-    # transaction and then receives IntegrityError. Rolling back only the savepoint
-    # keeps the request transaction usable so the loser can read and replay the
-    # winner's committed response instead of leaking a 500.
+    # savepoint 很重要。在 PostgreSQL 中，对唯一约束
+    # (org, scope, key) 的并发插入会在这里串行化。失败方会等待成功方
+    # 的事务并收到 IntegrityError。只回滚 savepoint
+    # 可以让请求事务继续可用，使失败方读取并重放
+    # 成功方已提交的响应，而不是向外泄漏 500。
     try:
         with db.begin_nested():
             db.add(record)
