@@ -46,7 +46,7 @@ def get_case(db: Session, *, context: TenantContext, case_id: uuid.UUID) -> Retu
         )
     ).scalar_one_or_none()
     if case is None:
-        # Deliberately return 404 for cross-tenant ids to avoid leaking existence.
+        # 对跨租户 ID 刻意返回 404，避免泄漏资源是否存在。
         raise NotFound("return case not found")
     return case
 
