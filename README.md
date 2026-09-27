@@ -3,7 +3,9 @@
 [![CI](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml/badge.svg)](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white&style=flat-square)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-required-4169E1?logo=postgresql&logoColor=white&style=flat-square)
-![License](https://img.shields.io/github/license/xiongweilin/ReturnOps-Mini?style=flat-square)
+![License](https://img.shields.io/github/license/xiongweilin/ReturnOps-Mini?style=flat-square) [![Docs: EN / 中文](https://img.shields.io/badge/docs-EN%20%7C%20%E4%B8%AD%E6%96%87-blue.svg)](README.en.md)
+
+[简体中文](README.md) | [English](README.en.md)
 
 ReturnOps Mini 是一个刻意控制规模、但保留真实工程风险的多租户退货退款 SaaS。它不是生产级电商平台，也不是“展示 AI 能写多少代码”的样板，而是一个用于训练**工程判断力**的小型完整产品。
 
