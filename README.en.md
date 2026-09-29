@@ -15,7 +15,7 @@ The training goal is not to memorize every line of code. It is to build the abil
 
 - draw the complete state and data flow;
 - explain which code and database constraints enforce each core invariant;
-- predict major failure paths before seeing the implementation;
+- produce testable failure-path predictions in answer-free probes when that independence is the skill being tested;
 - judge what a passing test actually proves and what it does not;
 - assess impact radius, verification, and rollback risk after an AI-generated change;
 - handle uncertain reality where an external system may have succeeded while the local system does not know.
@@ -173,40 +173,37 @@ See [`docs/ai-judgment-training.md`](docs/ai-judgment-training.md) for the full 
 ```text
 choose one invariant
 ↓
-draw the state/data path yourself
+state the minimum clue, initial judgment, or uncertainty
 ↓
-predict 3–5 failure scenarios yourself
+let AI expand candidate state/data paths, counterexamples, or formal structure
 ↓
-ask AI to question you without giving the answer
+decide which distinctions can change the judgment and what evidence is needed
 ↓
-answer and state what evidence would be required
-↓
-let AI act as an adversarial reviewer and inject faults/counterexamples
+let AI inject faults or counterexamples
 ↓
 run tests / PostgreSQL / fake provider / migration
 ↓
-compare prediction with observed result
+compare candidate judgments with observed results
 ↓
-record the failure pattern and future automation rule
+revise the model and retain reusable failure patterns
 ```
 
-AI mainly plays four roles in the training: questioner, adversarial reviewer, fault injector, and evidence reviewer. You remain the person who decides whether the system is sufficiently correct.
+AI may participate heavily in search, generation, and formalization. Use answer-free work only when independent retrieval or prediction is the capability being tested. You remain responsible for deciding what counts as sufficient evidence, whether the system is sufficiently correct, and when the model must be reopened.
 
 Suggested prompt:
 
 ```text
-You are not a code generator in this session. You are my software engineering mentor.
-The goal is to train my judgment. Do not give the conclusion directly.
+You are my software engineering mentor and candidate-formalization assistant.
 
 This round focuses only on this invariant: <insert one invariant>.
 
 Rules:
-1. Ask me questions first, one at a time.
-2. If my answer lacks assumptions, failure paths, or concurrency semantics, keep questioning.
+1. First let me state the minimum clue, initial judgment, or uncertainty.
+2. You may expand candidate structures, counterexamples, and failure paths, but label them as candidates and do not make the final judgment for me.
 3. Do not assume code or tests are correct because their names look reasonable.
-4. Require me to distinguish facts, hypotheses, risks, and required evidence.
-5. Do not give the final answer until I have produced a complete judgment.
-6. At the end, identify at most three important points I missed and explain how to verify them.
+4. Require me to distinguish confirmed facts, hypotheses, risks, and required evidence.
+5. Switch to question-only, answer-free mode only when this round explicitly tests independent retrieval or prediction.
+6. At the end, identify at most three important omissions and explain how to verify them.
 ```
 
 Before merging any change, you must be able to answer: Which invariants did this change touch? Which states, database rows, or external side effects changed? What is the most dangerous failure point? Which test or experiment proves the intended property? If that proof fails, what is the worst possible system outcome?
