@@ -10,9 +10,11 @@ from sqlalchemy.orm import Session
 from returnops.config import get_settings
 from returnops.db import SessionLocal
 from returnops.errors import Conflict, ExternalSystemFailure
+from returnops.models import OutboxEvent
 from returnops.services.outbox import (
     TOPIC_REFUND_DISPATCH,
     claim_batch,
+    claim_event,
     dead_letter,
     mark_done,
     reschedule,
@@ -141,6 +143,24 @@ def run_once(*, provider: PaymentProviderClient | None = None, limit: int = 10) 
                 logger.exception("event processing failed", extra={"event_id": str(claimed.id)})
             processed += 1
     return processed
+
+
+def process_event_once(event_id: uuid.UUID, *, provider: PaymentProviderClient) -> bool:
+    settings = get_settings()
+    with SessionLocal() as db:
+        event = claim_event(db, event_id=event_id, lease_seconds=settings.worker_lease_seconds)
+        if event is None:
+            return False
+        claimed_id = event.id
+        db.commit()
+
+    with SessionLocal() as db:
+        event = db.get(OutboxEvent, claimed_id)
+        if event is None or event.status != "processing":
+            return False
+        process_event(db, event, provider=provider)
+        db.commit()
+    return True
 
 
 def main() -> None:

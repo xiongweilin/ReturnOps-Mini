@@ -9,9 +9,13 @@ mutants/
 .venv/
 venv/
 .env
+.local/
 *.db
 *.sqlite
 *.sqlite3
 build/
 dist/
 *.egg-info/
+node_modules/
+frontend/test-results/
+frontend/playwright-report/

@@ -140,6 +140,10 @@ def create_refund(
         # 超时。调用方必须把结果归类为 UNKNOWN 并执行 reconciliation。
         background.add_task(_send_webhook, row)
         time.sleep(5)
+    elif simulate == "timeout_after_processing_no_webhook":
+        # Fault-lab path: persist the refund and drop the synchronous ACK without
+        # a Webhook. ReturnOps must keep UNKNOWN until an authoritative lookup.
+        time.sleep(5)
     elif simulate == "webhook_before_timeout":
         # 刻意制造两条 evidence path 的竞争：在原始 HTTP 请求
         # 最终超时前，由独立线程发送 success webhook。

@@ -10,6 +10,7 @@ class Role(StrEnum):
     WAREHOUSE = "warehouse"
     FINANCE = "finance"
     ADMIN = "admin"
+    AUTOMATION = "automation"
 
 
 class ReturnStatus(StrEnum):

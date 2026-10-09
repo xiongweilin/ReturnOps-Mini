@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, String, cast as sql_cast, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from returnops.domain.states import (
@@ -57,12 +57,55 @@ def list_cases(
     context: TenantContext,
     status: ReturnStatus | None = None,
     limit: int = 50,
+    offset: int = 0,
+    search: str | None = None,
 ) -> list[ReturnCase]:
     stmt = select(ReturnCase).where(ReturnCase.organization_id == context.organization_id)
     if status is not None:
         stmt = stmt.where(ReturnCase.status == status)
-    stmt = stmt.order_by(ReturnCase.created_at.desc()).limit(max(1, min(limit, 200)))
+    if search:
+        pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                ReturnCase.case_ref.ilike(pattern),
+                ReturnCase.external_order_ref.ilike(pattern),
+                ReturnCase.customer_ref.ilike(pattern),
+                sql_cast(ReturnCase.id, String).ilike(pattern),
+            )
+        )
+    stmt = (
+        stmt.order_by(ReturnCase.created_at.desc())
+        .limit(max(1, min(limit, 200)))
+        .offset(max(0, offset))
+    )
     return list(db.execute(stmt).scalars().all())
+
+
+def count_cases(
+    db: Session,
+    *,
+    context: TenantContext,
+    status: ReturnStatus | None = None,
+    search: str | None = None,
+) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(ReturnCase)
+        .where(ReturnCase.organization_id == context.organization_id)
+    )
+    if status is not None:
+        stmt = stmt.where(ReturnCase.status == status)
+    if search:
+        pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                ReturnCase.case_ref.ilike(pattern),
+                ReturnCase.external_order_ref.ilike(pattern),
+                ReturnCase.customer_ref.ilike(pattern),
+                sql_cast(ReturnCase.id, String).ilike(pattern),
+            )
+        )
+    return int(db.execute(stmt).scalar_one())
 
 
 def create_case(
@@ -75,7 +118,7 @@ def create_case(
     requested_amount_minor: int,
     currency: str,
 ) -> ReturnCase:
-    require_role(context, Role.CUSTOMER_SERVICE)
+    require_role(context, Role.CUSTOMER_SERVICE, Role.AUTOMATION)
     if requested_amount_minor <= 0:
         raise Conflict("requested amount must be positive")
     case = ReturnCase(

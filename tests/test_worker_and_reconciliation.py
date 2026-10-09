@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import uuid
+
 import httpx
 import pytest
 from sqlalchemy import select
 
 from returnops.domain.states import RefundAttemptStatus, ReturnStatus, Role
 from returnops.models import OutboxEvent, RefundAttempt, ReturnCase
-from returnops.services.outbox import claim_batch
+from returnops.services.outbox import claim_batch, claim_event
 from returnops.services.payments import PaymentProviderClient, mark_success
 from returnops.services.reconciliation import reconcile_unknown_refund
 from returnops.services.returns import retry_failed_refund
-from returnops.services.worker import process_event
+from returnops.services.worker import process_event, process_event_once
 from .helpers import create_pending_refund
 
 
@@ -19,6 +21,97 @@ def _claim_one(db):
     assert len(events) == 1
     db.commit()
     return events[0]
+
+
+def test_targeted_outbox_claim_leaves_other_events_pending(db, seeded) -> None:
+    first = create_pending_refund(db, seeded, amount=1000)
+    second = create_pending_refund(db, seeded, amount=2000)
+    db.commit()
+    events = list(db.query(OutboxEvent).order_by(OutboxEvent.created_at).all())
+    assert len(events) == 2
+
+    claimed = claim_event(db, event_id=events[1].id, lease_seconds=30)
+    assert claimed is not None
+    db.flush()
+
+    assert claimed.status == "processing"
+    assert db.get(OutboxEvent, events[0].id).status == "pending"
+    assert db.get(ReturnCase, first.id).status is ReturnStatus.REFUND_PENDING
+    assert db.get(ReturnCase, second.id).status is ReturnStatus.REFUND_PENDING
+
+
+def test_one_shot_worker_processes_only_the_selected_event(
+    session_factory, db, seeded, monkeypatch
+) -> None:
+    first = create_pending_refund(db, seeded, amount=1000)
+    second = create_pending_refund(db, seeded, amount=2000)
+    db.commit()
+    first_attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == first.id)
+    ).scalar_one()
+    first_event = db.execute(
+        select(OutboxEvent).where(OutboxEvent.aggregate_id == str(first_attempt.id))
+    ).scalar_one()
+    second_attempt = db.execute(
+        select(RefundAttempt).where(RefundAttempt.return_case_id == second.id)
+    ).scalar_one()
+    second_event = db.execute(
+        select(OutboxEvent).where(OutboxEvent.aggregate_id == str(second_attempt.id))
+    ).scalar_one()
+    event_id = first_event.id
+    second_event_id = second_event.id
+    monkeypatch.setattr("returnops.services.worker.SessionLocal", session_factory)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "refund_id": "rf_targeted",
+                "status": "succeeded",
+                "amount_minor": 1000,
+                "currency": "USD",
+                "idempotency_key": request.headers["Idempotency-Key"],
+            },
+        )
+
+    processed = process_event_once(
+        event_id,
+        provider=PaymentProviderClient(transport=httpx.MockTransport(handler)),
+    )
+    assert processed is True
+    with session_factory() as check_db:
+        assert check_db.get(ReturnCase, first.id).status is ReturnStatus.REFUNDED
+        assert check_db.get(OutboxEvent, second_event_id).status == "pending"
+        assert check_db.get(ReturnCase, second.id).status is ReturnStatus.REFUND_PENDING
+
+
+def test_payment_client_uses_explicit_demo_simulation_mode() -> None:
+    observed: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        observed["mode"] = request.headers["X-Simulate"]
+        return httpx.Response(
+            200,
+            json={
+                "refund_id": "rf_demo",
+                "status": "succeeded",
+                "amount_minor": 1000,
+                "currency": "USD",
+                "idempotency_key": request.headers["Idempotency-Key"],
+            },
+        )
+
+    provider = PaymentProviderClient(
+        transport=httpx.MockTransport(handler),
+        simulation_mode="timeout_after_processing_no_webhook",
+    )
+    provider.create_refund(
+        idempotency_key="return:demo:refund:v1",
+        amount_minor=1000,
+        currency="USD",
+        return_case_id=uuid.uuid4(),
+    )
+    assert observed["mode"] == "timeout_after_processing_no_webhook"
 
 
 def test_successful_dispatch_moves_case_to_refunded(db, seeded) -> None:

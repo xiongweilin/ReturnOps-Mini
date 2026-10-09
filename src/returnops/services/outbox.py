@@ -59,6 +59,29 @@ def claim_batch(db: Session, *, limit: int, lease_seconds: int) -> list[OutboxEv
     return events
 
 
+def claim_event(db: Session, *, event_id: uuid.UUID, lease_seconds: int) -> OutboxEvent | None:
+    now = utcnow()
+    event = db.execute(
+        select(OutboxEvent)
+        .where(
+            OutboxEvent.id == event_id,
+            OutboxEvent.available_at <= now,
+            or_(
+                OutboxEvent.status == "pending",
+                (OutboxEvent.status == "processing") & (OutboxEvent.lease_until < now),
+            ),
+        )
+        .with_for_update(skip_locked=True)
+    ).scalar_one_or_none()
+    if event is None:
+        return None
+    event.status = "processing"
+    event.lease_until = now + timedelta(seconds=lease_seconds)
+    event.attempts += 1
+    db.flush()
+    return event
+
+
 def mark_done(event: OutboxEvent) -> None:
     event.status = "done"
     event.lease_until = None

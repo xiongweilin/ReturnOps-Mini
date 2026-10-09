@@ -1,41 +1,64 @@
+name: returnflow-demo
+
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.11-alpine3.24
     environment:
-      POSTGRES_USER: returnops
-      POSTGRES_PASSWORD: returnops
-      POSTGRES_DB: returnops
+      POSTGRES_USER: ${POSTGRES_USER:-returnops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/start-demo.ps1 to create local settings}
+      POSTGRES_DB: ${POSTGRES_DB:-returnops}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U returnops -d returnops"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-returnops} -d ${POSTGRES_DB:-returnops}"]
       interval: 2s
       timeout: 2s
-      retries: 20
+      retries: 30
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
   migrate:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment: &returnops-env
-      RETURNOPS_DATABASE_URL: postgresql+psycopg://returnops:returnops@postgres:5432/returnops
+      RETURNOPS_ENVIRONMENT: ${RETURNOPS_ENVIRONMENT:-demo}
+      RETURNOPS_DEMO_MODE: ${RETURNOPS_DEMO_MODE:-true}
+      RETURNOPS_DEMO_ORGANIZATION_NAME: ${RETURNOPS_DEMO_ORGANIZATION_NAME:-Demo Store}
+      RETURNOPS_DEMO_AUTOMATION_TOKEN_FILE: ${RETURNOPS_DEMO_AUTOMATION_TOKEN_FILE:-.local/automation-token.txt}
+      RETURNOPS_DEMO_SESSION_TTL_SECONDS: ${RETURNOPS_DEMO_SESSION_TTL_SECONDS:-28800}
+      RETURNOPS_DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-returnops}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-returnops}"
       RETURNOPS_PAYMENT_BASE_URL: http://payment:8090
-      RETURNOPS_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
-      RETURNOPS_PAYMENT_SIMULATION_MODE: normal
+      RETURNOPS_PAYMENT_WEBHOOK_SECRET: ${RETURNOPS_PAYMENT_WEBHOOK_SECRET:?Run scripts/start-demo.ps1 to create local settings}
+      RETURNOPS_PAYMENT_SIMULATION_MODE: ${RETURNOPS_PAYMENT_SIMULATION_MODE:-normal}
+      RETURNOPS_HIGH_VALUE_THRESHOLD: ${RETURNOPS_HIGH_VALUE_THRESHOLD:-50000}
     depends_on:
       postgres:
         condition: service_healthy
     command: ["alembic", "upgrade", "head"]
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment: *returnops-env
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - ./.local:/app/.local
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment: *returnops-env
     depends_on:
       migrate:
@@ -45,17 +68,73 @@ services:
     command: ["python", "-m", "returnops.services.worker"]
 
   payment:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       FAKE_PAYMENT_DB: /data/fake-payment.db
       FAKE_PAYMENT_WEBHOOK_URL: http://api:8000/v1/webhooks/payment
-      FAKE_PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+      FAKE_PAYMENT_WEBHOOK_SECRET: ${RETURNOPS_PAYMENT_WEBHOOK_SECRET:?Run scripts/start-demo.ps1 to create local settings}
     command: ["uvicorn", "fake_payment.app:app", "--host", "0.0.0.0", "--port", "8090"]
     volumes:
       - paymentdata:/data
     ports:
-      - "8090:8090"
+      - "127.0.0.1:${PAYMENT_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-4173}:80"
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.42.5
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_EDITOR_BASE_URL: "http://localhost:${N8N_PORT:-5678}/"
+      WEBHOOK_URL: "http://localhost:${N8N_PORT:-5678}/"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Run scripts/start-demo.ps1 to create local settings}
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_HIRING_BANNER_ENABLED: "false"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Shanghai}
+      TZ: ${GENERIC_TIMEZONE:-Asia/Shanghai}
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: ${MAILPIT_MAX_MESSAGES:-5000}
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - mailpitdata:/data
 
 volumes:
   pgdata:
   paymentdata:
+  n8ndata:
+  mailpitdata:

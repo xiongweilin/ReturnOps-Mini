@@ -1,0 +1,242 @@
+{
+  "name": "01-return-intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "return-intake",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6b709efe-3dc9-4d5c-b4a2-c503e2fab201",
+      "name": "Return Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [-760, 0],
+      "webhookId": "20abeaa1-7703-4e22-b9f7-5c13b5f1e245"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ ({ eventId: String($json.body?.event_id ?? '').trim(), externalOrderRef: String($json.body?.external_order_ref ?? '').trim(), customerRef: String($json.body?.customer_ref ?? '').trim(), reason: String($json.body?.reason ?? '').trim(), requestedAmountMinor: Number.isInteger(Number($json.body?.requested_amount_minor)) ? Number($json.body.requested_amount_minor) : 0, currency: String($json.body?.currency ?? '').trim().toUpperCase() }) }}",
+        "options": {}
+      },
+      "id": "51239338-962e-4839-8496-e16111aeb537",
+      "name": "Normalize Intake Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [-640, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6d882eb2-aab1-4d3f-8920-3bb2bc724aae",
+              "leftValue": "={{ $json.eventId }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "id": "d24a0ce7-8a76-458c-9371-fb958cdafcf0",
+              "leftValue": "={{ $json.externalOrderRef }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "id": "3222d131-1639-4114-a1ad-78ad82254e17",
+              "leftValue": "={{ $json.customerRef }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "id": "ae6a9c2f-1b51-43b5-93c1-a74203dd8671",
+              "leftValue": "={{ $json.reason }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "id": "f8a5bddd-e3a6-4655-818a-520d3c8bfd03",
+              "leftValue": "={{ $json.currency.length }}",
+              "rightValue": 3,
+              "operator": { "type": "number", "operation": "equals" }
+            },
+            {
+              "id": "374b0fb5-087d-445a-a6a2-4b7a544feacd",
+              "leftValue": "={{ $json.requestedAmountMinor }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            },
+            {
+              "id": "b849be58-543e-488a-a729-cc5875cdf061",
+              "leftValue": "={{ $json.requestedAmountMinor }}",
+              "rightValue": 100000000,
+              "operator": { "type": "number", "operation": "lte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "453fc00b-0e95-4e98-a9b4-aa009a43cb1a",
+      "name": "Validate Intake Fields",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ ({ eventId: $json.eventId, idempotencyKey: `return-intake:${$json.eventId}`, returnPayload: { external_order_ref: $json.externalOrderRef, customer_ref: $json.customerRef, reason: $json.reason, requested_amount_minor: $json.requestedAmountMinor, currency: $json.currency } }) }}",
+        "options": {}
+      },
+      "id": "8c05e2fc-330a-41c5-b85a-8afbb280ebeb",
+      "name": "Map ReturnCreate Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [-280, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/v1/returns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotencyKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.returnPayload }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "ea61da26-57ce-4528-96bd-e14fca9c109f",
+      "name": "Create Return in ReturnOps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-40, -120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7c6108d1-197b-4b9f-b232-f4509df71442",
+              "leftValue": "={{ $json.body?.result?.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "32597e41-4579-4517-9bd5-d433e3560bca",
+      "name": "Return Created or Replayed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [200, -120]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ ({ accepted: true, caseId: $json.body.result.id, caseRef: $json.body.result.caseRef, status: $json.body.result.status, replayed: $json.body.replayed }) }}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "dc27cb25-2acd-45f4-8c26-1c15d71b729d",
+      "name": "Respond with Created Return",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [480, -200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ ({ accepted: false, error: $json.body?.error?.message || 'ReturnOps rejected the intake request', code: $json.body?.error?.code || 'returnops_error', upstreamStatus: $json.statusCode }) }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode >= 400 && $json.statusCode < 500 ? $json.statusCode : 502 }}"
+        }
+      },
+      "id": "28a79d03-eb65-4c26-93e1-7dc663476495",
+      "name": "Respond with ReturnOps Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [480, -40]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ ({ accepted: false, error: 'Invalid intake: required fields are missing or the currency/amount is invalid', required: ['event_id', 'external_order_ref', 'customer_ref', 'reason', 'requested_amount_minor', 'currency'] }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "0d98ff7b-6caf-4c55-80fa-49d07972669e",
+      "name": "Respond with Invalid Intake",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [-280, 120]
+    }
+  ],
+  "connections": {
+    "Return Intake Webhook": {
+      "main": [[{ "node": "Normalize Intake Fields", "type": "main", "index": 0 }]]
+    },
+    "Normalize Intake Fields": {
+      "main": [[{ "node": "Validate Intake Fields", "type": "main", "index": 0 }]]
+    },
+    "Validate Intake Fields": {
+      "main": [
+        [{ "node": "Map ReturnCreate Payload", "type": "main", "index": 0 }],
+        [{ "node": "Respond with Invalid Intake", "type": "main", "index": 0 }]
+      ]
+    },
+    "Map ReturnCreate Payload": {
+      "main": [[{ "node": "Create Return in ReturnOps", "type": "main", "index": 0 }]]
+    },
+    "Create Return in ReturnOps": {
+      "main": [[{ "node": "Return Created or Replayed", "type": "main", "index": 0 }]]
+    },
+    "Return Created or Replayed": {
+      "main": [
+        [{ "node": "Respond with Created Return", "type": "main", "index": 0 }],
+        [{ "node": "Respond with ReturnOps Error", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "fe6a3a4f-27d0-4238-b23a-0bd827e81d4f",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}
