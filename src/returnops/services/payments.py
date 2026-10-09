@@ -25,10 +25,14 @@ class ProviderRefundResult:
 
 class PaymentProviderClient:
     def __init__(
-        self, base_url: str | None = None, transport: httpx.BaseTransport | None = None
+        self,
+        base_url: str | None = None,
+        transport: httpx.BaseTransport | None = None,
+        simulation_mode: str | None = None,
     ) -> None:
         self.base_url = (base_url or get_settings().payment_base_url).rstrip("/")
         self.transport = transport
+        self.simulation_mode = simulation_mode
 
     def create_refund(
         self,
@@ -43,7 +47,7 @@ class PaymentProviderClient:
                 "/refunds",
                 headers={
                     "Idempotency-Key": idempotency_key,
-                    "X-Simulate": get_settings().payment_simulation_mode,
+                    "X-Simulate": self.simulation_mode or get_settings().payment_simulation_mode,
                 },
                 json={
                     "amount_minor": amount_minor,

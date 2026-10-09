@@ -1,227 +1,123 @@
-# ReturnOps Mini
+# ReturnFlow — 电商售后退款工作流
 
-[![CI](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml/badge.svg)](https://github.com/xiongweilin/ReturnOps-Mini/actions/workflows/ci.yml)
-![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white&style=flat-square)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-required-4169E1?logo=postgresql&logoColor=white&style=flat-square)
-![License](https://img.shields.io/github/license/xiongweilin/ReturnOps-Mini?style=flat-square) [![Docs: EN / 中文](https://img.shields.io/badge/docs-EN%20%7C%20%E4%B8%AD%E6%96%87-blue.svg)](README.en.md)
+ReturnFlow 面向需要客服、仓库和财务协作的小型电商团队，将退货申请、验货、退款审批、退款执行与支付对账放进一条可追踪流程。ReturnOps API 负责业务事实和退款状态；n8n 负责外围接单与通知，不直接改库、不审批、不发起退款。
 
-[简体中文](README.md) | [English](README.en.md)
+## 业务流程
 
-ReturnOps Mini 是一个刻意控制规模、但保留真实工程风险的多租户退货退款 SaaS。它不是生产级电商平台，也不是“展示 AI 能写多少代码”的样板，而是一个用于训练**工程判断力**的小型完整产品。
-
-这个仓库从 `commerce-orchestrator` 与 `administrative-orchestrator` 中抽取了最值得学习的可靠性问题：租户隔离、角色权限、状态机、乐观并发控制、幂等、Outbox、外部副作用、结果未知、Webhook 去重、对账、迁移与审计。与此同时，它主动删除了 DBOS、Kafka、Redis、通用工作流引擎、CQRS 等会遮蔽基本机制的基础设施。
-
-训练目标不是逐行背下全部代码，而是达到下面的能力：
-
-- 能画出完整状态与数据流；
-- 能说清每条核心不变量由什么代码和数据库约束保证；
-- 能在需要的 answer-free probe 中先给出可检验的失败路径预测；
-- 能判断一个“测试通过”的结论到底证明了什么、没有证明什么；
-- 能在 AI 生成修改后判断影响半径、验证方式与回滚风险；
-- 能处理“外部系统实际上成功，但本系统不知道”的不确定现实。
-
-如果完成训练后，你仍然只能说“AI review 说没问题”，那这个项目的训练目标没有达成。最终目标是：**AI 主要负责搜索、生成、质疑和制造故障，你本人负责定义正确性、选择证据并做最终判断。**
-
-## 一、产品是什么
-
-一个商户团队用 ReturnOps Mini 处理退货与退款。系统有四类角色：
-
-- `customer_service`：创建退货、审核退货资格；
-- `warehouse`：确认收货、检查商品；
-- `finance`：批准退款、处理不确定结果、完成对账与关闭；
-- `admin`：租户管理角色；它可以执行部分业务动作，但不是“万能绕过所有规则”的超级用户。
-
-正常业务状态：
-
-```text
-REQUESTED
-  -> AUTHORIZED
-  -> RECEIVED
-  -> INSPECTED
-  -> REFUND_APPROVED
-  -> REFUND_PENDING
-  -> REFUNDED
-  -> RECONCILED
-  -> CLOSED
+```mermaid
+flowchart TD
+  Form[外部退货表单] --> Intake[n8n Intake Webhook]
+  Intake -->|校验 + 幂等| API[ReturnOps API]
+  UI[业务操作台] -->|客服 / 仓库 / 财务| API
+  API --> PG[(PostgreSQL)]
+  API --> Outbox[Transactional Outbox]
+  Outbox --> Worker[Refund Worker]
+  Worker -->|单次幂等退款意图| Payment[Fake Payment]
+  Payment -->|同步响应 / Webhook| API
+  API -->|真实状态与证据| UI
+  Schedule[n8n Schedule / 手动摘要] -->|只读查询| API
+  Schedule --> Mailpit[Mailpit]
+  API -->|UNKNOWN 时暂停自动重试| Finance[财务权威核查、对账、结案]
+  Finance -->|人工核查命令| API
+  API -->|使用原幂等键查询| Payment
+  Payment -->|权威退款状态| API
 ```
 
-外部退款执行可能进入异常分支：
+## 操作台截图
 
-```text
-REFUND_PENDING
-  -> REFUND_UNKNOWN
-  -> NEEDS_RECONCILIATION
-  -> REFUNDED
+![ReturnFlow 业务总览](docs/assets/returnflow-overview.png)
+
+正常闭环：[工单详情与支付证据](docs/assets/returnflow-closed-case.png) · 高额退款：[第二人审批](docs/assets/returnflow-second-approver.png)。
+
+## 自动化工作流
+
+仓库包含两份可导入的 n8n JSON：
+
+- [`01-return-intake.json`](n8n/workflows/01-return-intake.json)：Basic Auth Webhook → 字段校验/映射 → 稳定 `Idempotency-Key` → `POST /v1/returns` → 明确返回创建、重放、冲突或拒绝结果。
+- [`02-operations-digest.json`](n8n/workflows/02-operations-digest.json)：每日 09:00（`Asia/Shanghai`）或手动运行 → 查询 ReturnOps 当前汇总与角色待办 → 邮件发送到 Mailpit。摘要包含待处理工单、负责角色和下一步动作。
+
+两条工作流已在本地 n8n 2.42.5 实例导入、绑定凭据并发布；真实生产 Webhook、幂等重放、冲突/无效/未授权路径以及摘要邮件均已执行验证。n8n 只调用 ReturnOps API；导出 JSON 不含凭据。详见 [`n8n/README.md`](n8n/README.md) 与 [测试证据](docs/TEST-EVIDENCE.md)。
+
+## 正常流程与异常恢复
+
+- **正常流程：**客服创建并审核 → 仓库收货/验货 → 财务审批（高额退款由不同财务人员完成双人审批）→ Fake Payment → 对账与结案。
+- **异常流程：**Fake Payment 已保存退款但同步 ACK 延迟超时且无 Webhook；状态进入 `REFUND_UNKNOWN`，不盲目重试。财务查询支付方权威记录、核对证据后再对账结案。截图：[UNKNOWN 安全暂停](docs/assets/returnflow-unknown-before-reconcile.png) · [权威查询恢复](docs/assets/returnflow-unknown-recovered.png)。
+- **重复/错误接单验收：**本地启动并配置 n8n 后，可运行以下集成检查；它只访问 loopback，重跑时复用固定合成事件，不会再创建同事件工单。
+
+  ```powershell
+  cd frontend
+  $env:RUN_N8N_INTEGRATION = '1'
+  npm run test:n8n
+  Remove-Item Env:RUN_N8N_INTEGRATION
+  ```
+
+可重复演示步骤见 [`docs/DEMO.md`](docs/DEMO.md)，录屏顺序见 [`docs/RECORDING.md`](docs/RECORDING.md)。
+
+## 技术栈
+
+React、TypeScript、Vite · FastAPI · PostgreSQL · SQLAlchemy/Alembic · Python Outbox Worker · n8n 2.42.5 · Fake Payment · Mailpit · Docker Compose · Playwright。
+
+## 一键启动（Windows PowerShell 7）
+
+前置条件：Docker Desktop 已启动并使用 Linux containers。
+
+```powershell
+.\scripts\start-demo.ps1
 ```
 
-其中最重要的状态是 `REFUND_UNKNOWN`。一次 HTTP 超时只能证明“本系统没收到确定回复”，不能证明支付方没有执行退款。如果此时自动重新 POST，很可能造成重复退款。因此核心规则是：**未知结果不能盲目重试，必须通过 Webhook 或权威查询重新获得事实。**
+首次启动从 `.env.example` 生成被忽略的 `.env` 与随机本地密钥，然后构建/启动 Compose 服务、等待 API 健康并运行可重复种子。脚本不会显示密钥。
 
-## 二、核心不变量
+| 服务 | 默认地址 | 用途 |
+|---|---|---|
+| ReturnFlow 操作台 | <http://127.0.0.1:4173> | 演示登录与售后工单处理 |
+| ReturnOps API | <http://127.0.0.1:8000/docs> | OpenAPI 文档；业务状态仍由 API 管理 |
+| Fake Payment | <http://127.0.0.1:8090> | 本地模拟支付方 |
+| n8n | <http://127.0.0.1:5678> | 本地自动化编辑器 |
+| Mailpit | <http://127.0.0.1:8025> | 查看摘要邮件 |
 
-完整清单见 [`docs/invariants.md`](docs/invariants.md)。最重要的规则包括：
+所有宿主机端口绑定 `127.0.0.1`。新建 n8n 数据卷时运行 `.\scripts\bootstrap-n8n-demo.ps1`，owner 与 Webhook Basic Auth 凭据只保存于忽略的 `.local/`。再在 n8n UI 导入两份 JSON，绑定本地 `Custom Auth`、Webhook 与 Mailpit SMTP 凭据并发布。凭据绑定步骤见 [`n8n/README.md`](n8n/README.md)；当前运行卷已完成初始化。
 
-1. 每条业务记录只属于一个 Organization。
-2. 用户不能读取或修改其他 Organization 的退货记录。
-3. 跨租户对象 ID 对调用者表现为 `404`。
-4. 业务状态只能通过声明过的状态机转换。
-5. 并发状态写入必须使用 `version` 的 compare-and-swap。
-6. 退款金额必须大于 0，且不能超过申请金额。
-7. 高额退款需要两个不同的财务用户对相同金额批准。
-8. 一个退款意图使用稳定的 provider idempotency key。
-9. 外部结果未知时禁止自动再次发起退款。
-10. `REFUNDED` 必须由支付方证据产生。
-11. 同一个 Webhook event 最多影响一次业务状态。
-12. `CLOSED` 与 `REJECTED` 为终态。
+演示账户和订单均为虚构样本。角色通过服务端 Demo Mode 与 HttpOnly Cookie 切换；Demo Mode 不是生产级身份认证。停止服务保留数据；只有在明确要清空本项目演示卷时才执行带确认的重置脚本：
 
-审查 AI 代码时，首先检查“这次改动碰到了哪些不变量”，而不是先看变量名或代码风格。
-
-## 三、架构
-
-```text
-浏览器 / API Client
-        |
-        v
-FastAPI API  ---- 认证 + 租户成员关系
-        |
-        +---- Return Service ---- PostgreSQL
-        |       |                   | ReturnCase / Approval / Audit
-        |       |                   | IdempotencyRecord
-        |       +---- Outbox -------| OutboxEvent
-        |
-        +---- Payment Webhook ------| WebhookReceipt
-                                    |
-Worker <---- FOR UPDATE SKIP LOCKED-+
-  |
-  v
-Fake Payment Provider（独立进程 + SQLite）
-  |
-  +---- 同步 HTTP 响应
-  +---- Webhook
-  +---- 用于对账的权威查询
+```powershell
+.\scripts\verify-demo.ps1
+.\scripts\stop-demo.ps1
+.\scripts\reset-demo.ps1  # 破坏性：需输入 RESET-RETURNFLOW
 ```
 
-本项目故意不使用 DBOS、Kafka、Redis、CQRS、Event Sourcing 或通用工作流引擎。原因不是这些技术不好，而是当前训练目标是看清：哪一步是数据库事实，哪一步只是计划执行，哪一步已经越过网络边界，哪一步只能得到未知，以及哪一个机制真正阻止并发重复写入。
+## 主要代码模块
 
-## 四、目录与阅读顺序
+- `frontend/src/`：中文 React 操作台、API 类型、金额最小单位转换和会话状态。
+- `src/returnops/api/routes.py`：鉴权、租户范围 API、演示会话和业务操作入口。
+- `src/returnops/services/operator_queries.py`：总览、角色待办、退款异常与详情视图。
+- `src/returnops/domain/states.py`、`services/returns.py`、`services/payments.py`、`services/worker.py`、`services/webhooks.py`、`services/reconciliation.py`：状态机、权限、幂等、Outbox、外部证据和 UNKNOWN 恢复。
+- `src/fake_payment/`：可重复的本地支付模拟与故障场景。
+- `n8n/workflows/`：两份可导入工作流；`scripts/`：启动、种子、验证、停止、重置及 UNKNOWN 演示脚本。
 
-```text
-src/returnops/
-  api/                 HTTP 边界、认证与依赖注入
-  domain/              状态、角色、转换规则、不变量
-  services/
-    returns.py          核心业务动作 + version CAS
-    idempotency.py      请求 replay / conflict / 并发竞争
-    outbox.py           durable event、claim、lease、retry
-    payments.py         外部退款意图、结果与证据
-    webhooks.py         Webhook 去重与成功确认
-    reconciliation.py  UNKNOWN 的权威查询与收敛
-    worker.py           Outbox 消费与网络边界
-    tenancy.py          用户与 Organization 成员关系
-  models.py             SQLAlchemy 持久化模型
-  static/index.html     极薄的浏览器操作台
+## 测试与证据
 
-src/fake_payment/
-  app.py                可故障注入的支付方模拟器
-
-tests/
-  integration/          必须依赖真实 PostgreSQL 的并发测试
-
-docs/
-  invariants.md
-  failure-lab.md
-  ai-judgment-training.md
+```powershell
+.\scripts\verify.ps1                 # Ruff、mypy、非 PostgreSQL 单元/API 测试
+.\scripts\verify-demo.ps1            # 本地 Compose 服务与 HTTP 页面检查
+cd frontend
+npm ci
+npm run build
+npm run lint
+npm run e2e:typecheck
+npm run test:e2e
 ```
 
-建议第一次阅读顺序：`docs/invariants.md` → `domain/states.py` → `services/returns.py` → `services/idempotency.py` → `services/worker.py` → `services/payments.py` → `services/webhooks.py` → `services/reconciliation.py`，最后再回看 model、API 和测试。
+PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 `.\scripts\verify.ps1 -Integration`。本次证据包括 49 项 Python 测试通过、Playwright 正常/异常流程、PostgreSQL integration tests、n8n 生产 Webhook 幂等与拒绝路径、Mailpit 实际收件。逐项结果及环境边界见 [`docs/TEST-EVIDENCE.md`](docs/TEST-EVIDENCE.md)。
 
-## 五、快速启动
+## 已知限制
 
-需要 Docker 与 Compose v2：
+- Fake Payment 与 Mailpit 仅用于本地演示；未接入真实支付、外部 SMTP 或生产 ERP，也不处理真实客户个人信息。
+- 邮件投递采用普通 SMTP：执行重试可能产生重复摘要，SMTP 超时也不代表 Mailpit 未收信；不宣称 exactly-once。每日计划已发布，但当前验收只观察了手动触发结果。
+- Playwright 与 n8n runtime 测试会在持久化演示库留下合成工单；它们不是客户数据。`reset-demo.ps1` 会清空本项目命名卷且不可逆，必须手动确认。
+- 没有真实企业采用率、节省工时或差错率的测量；这些效果尚未验证。
 
-```bash
-docker compose up --build -d
-docker compose run --rm api python -m returnops.seed
-```
+## 项目材料
 
-seed 命令会输出一个 Organization ID 和多种角色的 demo bearer token。打开 `http://localhost:8000/`，在操作台中粘贴 Organization ID 与对应角色 token 即可按角色推进流程。
-
-服务地址：API `http://localhost:8000`，API health `http://localhost:8000/health`，Fake payment `http://localhost:8090/health`。
-
-## 六、测试与证据等级
-
-快速测试：
-
-```bash
-pytest -q -m 'not integration'
-```
-
-真实 PostgreSQL 并发测试：
-
-```bash
-export RETURNOPS_TEST_DATABASE_URL='postgresql+psycopg://returnops:returnops@localhost:5432/returnops'
-pytest -q -m integration
-```
-
-不同测试只能证明不同层面的事情：纯函数单测证明状态机与金额规则；SQLite API 测试证明 HTTP 契约、租户过滤和一般事务行为；PostgreSQL 并发测试证明 unique index 等待、row lock、CAS 竞争等真实语义；fake provider 实验证明 ACK 丢失、重复 Webhook、外部已成功但本地未知；migration round-trip 验证 schema 演进。
-
-“测试全绿”不是完整结论。正确问题应是：**这组证据具体证明了哪些不变量？还有哪些状态空间没有覆盖？**
-
-## 七、如何使用 AI 提升工程判断力
-
-完整方法见 [`docs/ai-judgment-training.md`](docs/ai-judgment-training.md)。不要把仓库丢给 AI 后只说“全面 review”。推荐固定使用这个训练循环：
-
-```text
-选择一个不变量
-↓
-你先给出最小线索、初始判断或不确定点
-↓
-AI 展开候选状态/数据路径、反例或形式化结构
-↓
-你筛选哪些差异会改变判断，并明确需要什么证据
-↓
-AI 扮演攻击者制造故障或反例
-↓
-运行测试 / PostgreSQL / fake provider / migration
-↓
-比较候选判断与真实结果
-↓
-修正模型，并记录可复用的失败模式
-```
-
-AI 可以高参与地搜索、生成和形式化；answer-free 只在需要测独立检索或预测时使用。最终决定“是否足够正确”、哪些证据足够、何时应重开的仍然是你。
-
-推荐提示词：
-
-```text
-你是我的软件工程导师和候选形式化助手。
-
-本轮只围绕这个不变量：<填入一条 invariant>。
-
-规则：
-1. 先让我给出最小线索、初始判断或不确定点；
-2. 你可以展开候选结构、反例和失败路径，但必须把它们标成候选，不替我做最终判断；
-3. 不要因为测试名、注释或代码结构看起来合理就假设它正确；
-4. 要求我区分：已确认事实、推测、风险、需要的证据；
-5. 只有在本轮明确训练独立检索或预测时，才切换成只提问、不供答案；
-6. 最后指出最多 3 个关键遗漏，并给出验证方式。
-```
-
-每次改动合并前，你本人必须回答：这次修改碰到了哪些不变量？改变了哪些状态、数据库行或外部副作用？最危险的失败点是什么？哪个测试或实验能证明它？如果该证明失败，系统最坏会发生什么？
-
-## 八、建议训练阶段
-
-阶段 A：纯状态判断，只研究 `domain/states.py` 与状态机测试。
-
-阶段 B：数据库不变量，研究 tenant ownership、金额约束、CAS、高额双审批。
-
-阶段 C：请求语义，研究 Idempotency-Key、replay、conflict、20 并发 caller。
-
-阶段 D：外部现实，研究 worker、fake provider、Webhook、UNKNOWN、reconciliation。
-
-阶段 E：系统演进，修改审批规则、增加字段、做 migration、保持旧数据兼容。
-
-## 九、第一版本的已知边界
-
-这是训练项目，不是可直接部署到真实金融/电商生产环境。第一版本重点是完整性与可验证性，不覆盖真实 PII 合规、生产密钥管理、复杂税务/多币种/部分退款、SSO、完整前端体验、生产级监控/SLO、多区域容灾。
-
-第一版本本地已验证非 integration 测试与 migration round-trip；真实 PostgreSQL 并发语义由 CI/integration 测试继续验证。第二阶段会专门围绕这些未证明边界做硬化。
+- [架构与安全边界](docs/ARCHITECTURE.md) · [演示步骤](docs/DEMO.md) · [作品集案例](docs/PORTFOLIO.md)
+- [录屏脚本](docs/RECORDING.md) · [测试证据](docs/TEST-EVIDENCE.md) · [初始仓库基线](docs/BASELINE.md)
+- [Mailpit 摘要收件箱](docs/assets/mailpit-summary-inbox.png) · [n8n Intake 节点图](docs/assets/n8n-01-return-intake.png) · [n8n Digest 节点图](docs/assets/n8n-02-operations-digest.png)

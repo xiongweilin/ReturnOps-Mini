@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RETURNOPS_", env_file=".env", extra="ignore")
 
     environment: str = "dev"
+    demo_mode: bool = False
+    demo_organization_name: str = "Demo Store"
+    demo_session_ttl_seconds: int = 28_800
+    demo_automation_token_file: str = ".local/automation-token.txt"
     database_url: str = "sqlite+pysqlite:///./returnops.db"
     payment_base_url: str = "http://payment:8090"
     payment_webhook_secret: str = "dev-webhook-secret"

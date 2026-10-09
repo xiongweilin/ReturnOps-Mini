@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from returnops.domain.states import ReturnStatus
+from returnops.domain.states import ReturnStatus, Role
 
 
 class ReturnCreate(BaseModel):
@@ -77,3 +77,8 @@ class PaymentWebhook(BaseModel):
     status: str
     amount_minor: int | None = None
     currency: str | None = None
+
+
+class DemoSessionRequest(BaseModel):
+    role: Role
+    finance_slot: int = Field(default=0, ge=0, le=1)

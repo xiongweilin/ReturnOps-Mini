@@ -1,0 +1,101 @@
+{
+  "name": "02-operations-digest",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6b4c529a-9e9d-467d-bcc6-96d040006bc4",
+      "name": "Run Digest Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-620, -80]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "d1a737aa-b984-44cd-96fd-a73d0533c03e",
+      "name": "Every Day at 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-620, 100]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/v1/overview",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {
+          "response": {
+            "response": { "responseFormat": "json" }
+          }
+        }
+      },
+      "id": "4a53274b-c9eb-4899-af0d-7e0ce96f627d",
+      "name": "Read Current Operations Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-340, 0]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ ({ date: $now.toFormat('yyyy-LL-dd'), subject: `ReturnFlow 每日售后待办摘要 · ${$now.toFormat('yyyy-LL-dd')}`, message: [`统计日期：${$now.toFormat('yyyy-LL-dd')}`, `工单总数：${$json.total}`, `待客服处理：${$json.pendingCustomerService}`, `待仓库处理：${$json.pendingWarehouse}`, `待财务审批：${$json.pendingFinance}`, `退款处理中：${$json.refundProcessing}`, `待财务核查/对账：${$json.refundExceptions}`, '', '待处理工单（最多 10 项）：', ...(($json.attentionItems || []).slice(0, 10).map((item) => `${item.caseRef} | ${item.ownerRole}：${item.nextAction} | ${item.status} | ${item.externalOrderRef}`)), '', '异常与待对账工单：', ...(($json.recentExceptions || []).map((item) => `${item.caseRef} | ${item.status} | ${item.externalOrderRef}`)), '', '运营台入口：本地 ReturnFlow 工作台'].join('\\n'), caseRefs: [...(($json.attentionItems || []).slice(0, 10).map((item) => item.caseRef)), ...(($json.recentExceptions || []).map((item) => item.caseRef))] }) }}",
+        "options": {}
+      },
+      "id": "012758e6-4f74-4ca3-8877-b57d1ff9b4dc",
+      "name": "Format Daily Digest",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [-60, 0]
+    },
+    {
+      "parameters": {
+        "resource": "email",
+        "operation": "send",
+        "fromEmail": "ReturnFlow Demo <returnflow@demo-store.example>",
+        "toEmail": "Operations <operations@demo-store.example>",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message }}",
+        "options": { "appendAttribution": false }
+      },
+      "id": "436240bf-b519-4733-8154-2385d7b33b3f",
+      "name": "Send Summary to Mailpit",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "Run Digest Manually": {
+      "main": [[{ "node": "Read Current Operations Summary", "type": "main", "index": 0 }]]
+    },
+    "Every Day at 09:00": {
+      "main": [[{ "node": "Read Current Operations Summary", "type": "main", "index": 0 }]]
+    },
+    "Read Current Operations Summary": {
+      "main": [[{ "node": "Format Daily Digest", "type": "main", "index": 0 }]]
+    },
+    "Format Daily Digest": {
+      "main": [[{ "node": "Send Summary to Mailpit", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "29c9241c-c7ec-4e7a-a676-9c89166e63ff",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}
