@@ -41,6 +41,8 @@
 
 最终 [run 38035879608](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38035879608) 在干净 Ubuntu runner 上以代码提交 `4e9e588b37cb8e417c4d7902182a07036eda0276` 成功完成：自动启动及配置 n8n、完整栈检查、普通浏览器 E2E、创建 UNKNOWN 场景、浏览器权威查询/对账/结案恢复、Production Intake Webhook、Digest→Mailpit，以及临时 Compose 项目与测试卷清理，所有步骤均为 success。测试过的应用与 workflow 代码在最终记录运行号的文档提交中未变更。
 
+PR 常规 CI 首轮 [run 38036341354](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38036341354) 的 8 项中有 7 项通过；Fault Lab 在重置场景数据时与仍在执行的 Fake Payment Webhook 发生 PostgreSQL 死锁。Fault Lab 的同步响应延迟与 UNKNOWN 对账场景已切换为不投递非目标 Webhook，隔离异步请求对下一个场景的影响。随后 [run 38036635498](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38036635498) 的 8 项 PR 检查全部通过，包括四类 Fault Lab 场景、性能契约、前端、PostgreSQL 集成、依赖/镜像扫描、变异测试、质量和 hygiene 检查。
+
 视频与文字说明抽样核对：MP4 时长为 297.2 秒，和约 4–5 分钟的录屏说明相符；简体中文字幕及 `RECORDING.md` 的时间线覆盖总览、Intake 幂等、岗位审批与高额二人复核、支付结果未知后的人工查询、Operations Digest 和 Mailpit 收件。对成片代表性画面的抽样检查显示这些 UI 与本轮浏览器、n8n 和 Mailpit 运行证据一致。视频和所有运行样例使用虚构数据、本地 Fake Payment 与 Mailpit。
 
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
