@@ -19,6 +19,7 @@ jobs:
       N8N_BASE_URL: http://127.0.0.1:5678
       N8N_WEBHOOK_URL: http://127.0.0.1:5678/webhook/return-intake
       MAILPIT_BASE_URL: http://127.0.0.1:8025
+      RETURNFLOW_UNKNOWN_ORDER_REF: DEMO-ORDER-UNKNOWN-981
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,7 +58,7 @@ jobs:
 
       - name: Create the UNKNOWN payment scenario
         shell: pwsh
-        run: ./scripts/run-unknown-demo.ps1 -OrderRef DEMO-ORDER-UNKNOWN-981
+        run: ./scripts/run-unknown-demo.ps1 -OrderRef $env:RETURNFLOW_UNKNOWN_ORDER_REF
 
       - name: Browser recovery E2E
         working-directory: frontend
