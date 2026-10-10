@@ -25,11 +25,7 @@ def wait_for_api_ready() -> None:
         try:
             with urlopen(API_HEALTH_URL, timeout=2) as response:
                 body = json.load(response)
-                if (
-                    response.status == 200
-                    and isinstance(body, dict)
-                    and body.get("status") == "ok"
-                ):
+                if response.status == 200 and isinstance(body, dict) and body.get("status") == "ok":
                     print(f"API HTTP readiness confirmed: {API_HEALTH_URL}", flush=True)
                     return
                 last_error = f"unexpected response: HTTP {response.status}, body={body!r}"
