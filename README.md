@@ -2,6 +2,10 @@
 
 ReturnFlow 面向需要客服、仓库和财务协作的小型电商团队，将退货申请、验货、退款审批、退款执行与支付对账放进一条可追踪流程。ReturnOps API 负责业务事实和退款状态；n8n 负责外围接单与通知，不直接改库、不审批、不发起退款。
 
+## 实机演示视频
+
+[▶ 播放 4–5 分钟中文视频演示](docs/assets/returnflow-demo.mp4) · [中文字幕文件](docs/assets/returnflow-demo.zh-CN.srt) · [演示操作脚本](docs/RECORDING.md)
+
 ## 业务流程
 
 ```mermaid
@@ -65,7 +69,7 @@ React、TypeScript、Vite · FastAPI · PostgreSQL · SQLAlchemy/Alembic · Pyth
 .\scripts\start-demo.ps1
 ```
 
-首次启动从 `.env.example` 生成被忽略的 `.env` 与随机本地密钥，然后构建/启动 Compose 服务、等待 API 健康并运行可重复种子。脚本不会显示密钥。
+首次启动从 `.env.example` 生成被忽略的 `.env` 与随机本地密钥，然后构建/启动 Compose 服务、运行可重复种子，并自动完成 n8n owner 初始化、凭据配置、两条工作流导入/更新和发布。无需在 n8n UI 手工逐项绑定。若缺少前端工具依赖，脚本会按 `package-lock.json` 执行 `npm ci` 并安装 Playwright Chromium。需要 Docker Desktop、Node.js 24+、npm 和首次拉取依赖/镜像时的网络连接；密钥不会显示或提交。
 
 | 服务 | 默认地址 | 用途 |
 |---|---|---|
@@ -75,7 +79,7 @@ React、TypeScript、Vite · FastAPI · PostgreSQL · SQLAlchemy/Alembic · Pyth
 | n8n | <http://127.0.0.1:5678> | 本地自动化编辑器 |
 | Mailpit | <http://127.0.0.1:8025> | 查看摘要邮件 |
 
-所有宿主机端口绑定 `127.0.0.1`。新建 n8n 数据卷时运行 `.\scripts\bootstrap-n8n-demo.ps1`，owner 与 Webhook Basic Auth 凭据只保存于忽略的 `.local/`。再在 n8n UI 导入两份 JSON，绑定本地 `Custom Auth`、Webhook 与 Mailpit SMTP 凭据并发布。凭据绑定步骤见 [`n8n/README.md`](n8n/README.md)；当前运行卷已完成初始化。
+所有宿主机端口绑定 `127.0.0.1`。`start-demo.ps1` 会自动完成 n8n owner 初始化、凭据配置和两条工作流发布，不需手工进入 UI 导入或绑定。owner、90 天本地 bootstrap API key、Webhook Basic Auth 和组织/自动化资料只保存在忽略的 `.local/`；bootstrap key 不会进入工作流 JSON，工作流本身仍只使用权限受限的 ReturnOps automation token。详见 [`n8n/README.md`](n8n/README.md)。
 
 演示账户和订单均为虚构样本。角色通过服务端 Demo Mode 与 HttpOnly Cookie 切换；Demo Mode 不是生产级身份认证。停止服务保留数据；只有在明确要清空本项目演示卷时才执行带确认的重置脚本：
 
@@ -92,7 +96,7 @@ React、TypeScript、Vite · FastAPI · PostgreSQL · SQLAlchemy/Alembic · Pyth
 - `src/returnops/services/operator_queries.py`：总览、角色待办、退款异常与详情视图。
 - `src/returnops/domain/states.py`、`services/returns.py`、`services/payments.py`、`services/worker.py`、`services/webhooks.py`、`services/reconciliation.py`：状态机、权限、幂等、Outbox、外部证据和 UNKNOWN 恢复。
 - `src/fake_payment/`：可重复的本地支付模拟与故障场景。
-- `n8n/workflows/`：两份可导入工作流；`scripts/`：启动、种子、验证、停止、重置及 UNKNOWN 演示脚本。
+- `n8n/workflows/`：两份可导入工作流，首次启动自动绑定本地凭据并发布；`scripts/`：启动、种子、验证、停止、重置及 UNKNOWN 演示脚本。
 
 ## 测试与证据
 
@@ -108,6 +112,8 @@ npm run test:e2e
 ```
 
 PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 `.\scripts\verify.ps1 -Integration`。本次证据包括 49 项 Python 测试通过、Playwright 正常/异常流程、PostgreSQL integration tests、n8n 生产 Webhook 幂等与拒绝路径、一次真实的 09:00 Asia/Shanghai 计划触发并成功投递到 Mailpit。逐项结果及环境边界见 [`docs/TEST-EVIDENCE.md`](docs/TEST-EVIDENCE.md)。
+
+常规 GitHub CI 对前端运行锁文件安装、production build、lint 和 E2E 类型检查；完整浏览器 E2E 与 n8n/Mailpit runtime 集成由[受控手动 workflow](.github/workflows/demo-integration.yml) 单独执行，使用隔离 Compose 项目并在结束时清理专属卷。
 
 ## 已知限制
 

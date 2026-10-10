@@ -49,10 +49,9 @@ REQUESTED ──客服──> AUTHORIZED ──仓库──> RECEIVED ──仓�
 
 ## n8n 初始化与运行边界
 
-1. 新建本地 n8n volume 时运行 `scripts/bootstrap-n8n-demo.ps1`，在被 Git 忽略的 `.local/` 中创建 owner 与 Webhook Basic Auth 凭据；脚本不输出凭据值。
-2. 在 n8n Web UI 导入 `n8n/workflows/01-return-intake.json` 和 `02-operations-digest.json`。
-3. 创建 `Custom Auth` 凭据，填入自动化 Bearer token 和组织 ID；不要将原始 token 保存进工作流 JSON。
-4. 绑定 Webhook Basic Auth 与 Email Send SMTP 凭据：SMTP 主机 `mailpit`、端口 `1025`、无 TLS/认证，收件人为 `operations@demo-store.example`。
-5. 手动运行摘要并检查 Mailpit，再发布工作流。每日计划在 `GENERIC_TIMEZONE` 配置的时区运行；当前本地实测记录见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。
+1. 人工只需触发 `scripts/start-demo.ps1`；它负责 Compose、Seed、owner 初始化、本地凭据生成、工作流 upsert、绑定和发布。首次缺少 Playwright 工具链时会按锁文件安装依赖和 Chromium。
+2. 自动化脚本使用仅存于 Git 忽略 `.local/` 的 90 天 n8n bootstrap API key，通过 n8n public REST API 管理本地凭据/工作流；key 不会被写入工作流 JSON。若续期或中途失败，重复运行会验证并恢复现状，不删除卷。
+3. ReturnOps 工作流凭据只引用权限受限的 automation 用户；该用户能建单、读待办，不能审批退款、触发支付或对账。Webhook Basic Auth 和 Mailpit SMTP 凭据同样仅保存在本地 n8n 加密数据卷。
+4. Daily Schedule Trigger 使用 Compose 的 `GENERIC_TIMEZONE`（默认 `Asia/Shanghai`）；手动 Digest 和一次真实 09:00 定时 Digest 均通过 Mailpit 验证。所有服务只绑定 loopback；Fake Payment 与 Mailpit 不会触达真实支付或外发邮件。
 
-当前本地 n8n 2.42.5 已实际导入、绑定凭据并发布两个工作流；生产 Intake Webhook 创建合成工单，手动 Digest 与一次真实 09:00 定时 Digest 均通过 Mailpit 验证。所有服务只绑定 loopback；Fake Payment 和 Mailpit 为本地服务，不会触达真实支付或外发邮件。测试细节与尚未验证的边界见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。
+当前本地 n8n 2.42.5 的运行证据、自动启动干净环境复现和边界记录见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。

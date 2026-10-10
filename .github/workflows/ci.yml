@@ -2,10 +2,14 @@ name: ci
 
 # 分层门禁：每个 job 只对应一个明确的 failure class。
 #   hygiene      workflow/仓库卫生：actionlint、zizmor、gitleaks
-#   quality      代码契约：ruff format、ruff check、mypy、pytest（非 integration）
+#   quality      Python 代码契约：ruff format、ruff check、mypy、pytest（非 integration）
+#   frontend     React/Vite 门禁：npm ci、production build、lint、E2E 类型检查
 #   dependencies 依赖解析结果的已知漏洞：pip-audit
-#   integration  真实 PostgreSQL 语义（SQLite 证明不了的部分）：alembic 回环 + pytest -m integration
+#   integration  真实 PostgreSQL 语义：alembic 回环 + pytest -m integration
 #   image        可交付镜像及其组成：docker build、syft SBOM、grype
+#   mutation     状态机与关键边界的变异诊断
+#   faultlab     手动运行的 Toxiproxy/PostgreSQL/k6 故障与性能实验
+# 浏览器 E2E 和 n8n/Mailpit runtime 另由受控 workflow_dispatch workflow 执行。
 # PR 也运行镜像/SBOM/漏洞门禁，避免 fixable High/Critical 在 merge 后才把 main 打红。
 # 依赖缓存故意不启用：本流程可在 tag 上触发并产出镜像/SBOM，zizmor 的 cache-poisoning 审计要求先消解发布型流程的缓存投毒面。
 
@@ -25,6 +29,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
+  NODE_VERSION: "24.14.0"
   ACTIONLINT_VERSION: "1.7.12.24"
   ZIZMOR_VERSION: "1.30.1"
   GITLEAKS_VERSION: "8.30.1"
@@ -78,6 +83,34 @@ jobs:
 
       - name: 单元与 API 测试 (pytest -m "not integration")
         run: pytest -q -m "not integration"
+
+  frontend:
+    name: frontend (build / lint / types)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 安装锁定的前端依赖 (npm ci)
+        run: npm ci
+
+      - name: 前端 production build
+        run: npm run build
+
+      - name: 前端 lint
+        run: npm run lint
+
+      - name: E2E 类型检查
+        run: npm run e2e:typecheck
 
   dependencies:
     name: dependencies

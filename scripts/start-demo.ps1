@@ -9,6 +9,12 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $envPath = Join-Path $repositoryRoot '.env'
 $examplePath = Join-Path $repositoryRoot '.env.example'
 
+foreach ($commandName in @('docker', 'node', 'npm')) {
+    if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
+        throw "First-run setup requires $commandName on PATH. Install Docker Desktop and Node.js 24 or later, then rerun scripts/start-demo.ps1."
+    }
+}
+
 function New-LocalSecret {
     param([Parameter(Mandatory)][int]$ByteCount)
 
@@ -87,7 +93,12 @@ try {
         throw "Demo initialization failed with exit code $LASTEXITCODE"
     }
 
-    Write-Host 'ReturnFlow is running. Open the frontend, n8n editor, and Mailpit at the localhost ports configured in .env.'
+    & (Join-Path $PSScriptRoot 'bootstrap-n8n-demo.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        throw "n8n first-run provisioning failed with exit code $LASTEXITCODE. Services were left running; rerun scripts/start-demo.ps1 to resume."
+    }
+
+    Write-Host 'ReturnFlow is ready: the frontend and both n8n workflows are configured and published. Open the frontend, n8n editor, and Mailpit at the localhost ports configured in .env.'
 }
 finally {
     Pop-Location
