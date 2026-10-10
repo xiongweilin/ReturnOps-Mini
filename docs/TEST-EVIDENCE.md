@@ -35,7 +35,13 @@
 
 本轮从 `main` 合并提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 的 Git archive 建立全新源代码副本；副本初始不含 `.git/`、`.env`、`.local/` 或 `frontend/node_modules/`，使用独立 Compose 项目和全新命名卷。按 README 调用 `scripts/start-demo.ps1` 两次：首次生成本地配置并创建/发布两条 n8n 工作流，第二次复用已有资源；`scripts/verify-demo.ps1` 通过。`npm ci`、Chromium 安装、普通浏览器 E2E（3 passed、1 skipped）、UNKNOWN 恢复 E2E（1 passed）、n8n Intake Webhook（401、400、201、同事件重放 201、冲突 409）以及 Digest→Mailpit 邮件检查均通过。未知退款场景确认 Fake Payment 已保存退款、无 Webhook；财务权威查询后完成对账。复现后仅停止本轮独立 Compose 项目，保留其数据卷。
 
-受控 GitHub Actions 首次运行在合并后的 `main` 提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 上触发：[run 38034480552](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38034480552)。Ubuntu 干净 runner 在 Seed 写入 `.local/organization-id.txt` 时遇到权限拒绝，未进入后续浏览器、UNKNOWN、n8n 与邮件验证。原因是 Compose bind mount 在宿主机 `.local/` 尚不存在时创建了 root 所有目录；`scripts/start-demo.ps1` 已调整为在启动 Compose 前创建宿主机目录。后续受控运行结果将在完成后补录。
+受控 GitHub Actions 首次运行在合并后的 `main` 提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 上触发：[run 38034480552](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38034480552)。Ubuntu 干净 runner 在 Seed 写入 `.local/organization-id.txt` 时遇到权限拒绝，未进入后续浏览器、UNKNOWN、n8n 与邮件验证。原因是 Compose bind mount 在宿主机 `.local/` 尚不存在时创建了 root 所有目录；`scripts/start-demo.ps1` 已调整为在启动 Compose 前创建宿主机目录。
+
+修复目录问题后的 [run 38035544448](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38035544448) 通过栈启动、基础浏览器流程和 UNKNOWN 创建，但恢复测试查找默认订单 `DEMO-ORDER-UNKNOWN-002`，而前置脚本创建了 `DEMO-ORDER-UNKNOWN-981`；浏览器找不到目标工单，后续 Intake 与 Digest 步骤因此跳过。workflow 现通过同一个 `RETURNFLOW_UNKNOWN_ORDER_REF` 环境值同时配置创建脚本和恢复测试。
+
+最终 [run 38035879608](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38035879608) 在干净 Ubuntu runner 上以代码提交 `4e9e588b37cb8e417c4d7902182a07036eda0276` 成功完成：自动启动及配置 n8n、完整栈检查、普通浏览器 E2E、创建 UNKNOWN 场景、浏览器权威查询/对账/结案恢复、Production Intake Webhook、Digest→Mailpit，以及临时 Compose 项目与测试卷清理，所有步骤均为 success。测试过的应用与 workflow 代码在最终记录运行号的文档提交中未变更。
+
+视频与文字说明抽样核对：MP4 时长为 297.2 秒，和约 4–5 分钟的录屏说明相符；简体中文字幕及 `RECORDING.md` 的时间线覆盖总览、Intake 幂等、岗位审批与高额二人复核、支付结果未知后的人工查询、Operations Digest 和 Mailpit 收件。对成片代表性画面的抽样检查显示这些 UI 与本轮浏览器、n8n 和 Mailpit 运行证据一致。视频和所有运行样例使用虚构数据、本地 Fake Payment 与 Mailpit。
 
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
 
