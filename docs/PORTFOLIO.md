@@ -25,9 +25,9 @@
 - 本地完整 Compose 栈运行；Python 全量测试 **49 passed**，其中包含 PostgreSQL integration 测试；Ruff、前端 production build、Lint 与 E2E 类型检查通过。
 - Playwright 通过本地操作台完成正常退款闭环、高额不同审批人验证、UNKNOWN 权威查询恢复，以及客服身份无法审批的浏览器/API 验收。
 - n8n **2.42.5** 两条工作流已在 Web UI 导入、凭据绑定并发布。生产 Intake Webhook 集成检查实测：无 Basic Auth 返回 401、无效请求返回 400、有效请求创建 `requested` 工单、相同事件重放返回同一工单、同幂等键改内容返回 409。
-- 更新后的 Digest 手动执行成功；Mailpit 中的真实本地邮件包含 API 汇总的待处理工单、负责角色和下一步动作。每日 09:00 Schedule Trigger 已发布，但计划时刻的自动执行尚未观察。
+- 更新后的 Digest 手动执行成功；随后每日 09:00 Schedule Trigger 于 2026-10-10 09:00:53（Asia/Shanghai）实际触发，n8n 执行记录 ID `20` 显示 Succeeded（110 ms）。Mailpit 最新邮件包含 API 汇总的待处理工单、负责角色和下一步动作。
 - 未删除卷而重启整个长驻 Compose 栈后，API 工单、Fake Payment 的权威退款记录（`post_count=1`）、n8n 发布状态和 Mailpit 邮件均保留；重启后的 Intake 集成检查与 Digest 手动发送仍成功。
-- 界面及工作流截图：[总览](assets/returnflow-overview.png)、[正常闭环](assets/returnflow-closed-case.png)、[高额第二人审批](assets/returnflow-second-approver.png)、[UNKNOWN 暂停](assets/returnflow-unknown-before-reconcile.png)、[恢复证据](assets/returnflow-unknown-recovered.png)、[n8n Intake](assets/n8n-01-return-intake.png)、[n8n Digest](assets/n8n-02-operations-digest.png)、[Mailpit 收件箱](assets/mailpit-summary-inbox.png)。
+- 界面及工作流截图：[总览](assets/returnflow-overview.png)、[正常闭环](assets/returnflow-closed-case.png)、[高额第二人审批](assets/returnflow-second-approver.png)、[UNKNOWN 暂停](assets/returnflow-unknown-before-reconcile.png)、[恢复证据](assets/returnflow-unknown-recovered.png)、[n8n Intake](assets/n8n-01-return-intake.png)、[n8n Digest](assets/n8n-02-operations-digest.png)、[n8n 定时执行成功](assets/n8n-02-scheduled-execution.png)、[Mailpit 收件箱](assets/mailpit-summary-inbox.png)。
 
 逐项测试命令、持久化演示数据说明和证据边界见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。
 
@@ -35,7 +35,7 @@
 
 - 没有真实企业客户试用数据，因此不能声称已经节省工时、降低财务差错率、提升采用率或验证长期维护成本。
 - 未接入真实支付、SMTP、ERP 或客户个人信息；Fake Payment 与 Mailpit 仅在本地演示。
-- 日报邮件采用普通 SMTP/Mailpit，不承诺 exactly-once。定时工作流已发布，但当前只有手动摘要投递被实测。
+- 日报邮件采用普通 SMTP/Mailpit，不承诺 exactly-once。计划触发已实测一次；单次观测不代表长期调度可靠性。
 - Demo Mode 仅供隔离本地演示，不是生产级身份认证。Playwright 与 n8n 集成检查会在持久化演示库留下合成订单。
 
 ## 设计取舍

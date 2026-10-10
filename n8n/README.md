@@ -38,7 +38,7 @@ Remove-Item Env:RUN_N8N_INTEGRATION
 
 ## 当前本地验收
 
-当前 Compose n8n 2.42.5 实例已通过 Web UI 导入、凭据绑定并发布两个工作流。Production Webhook 的运行时集成检查已实测未授权、无效、创建、重放及冲突分支；实际建单保持 `requested`，没有批准退款。更新后的 Operations Digest 在容器重启前后均通过手动触发，Mailpit 邮件包含从 API 查询的角色待办和下一步动作。对应节点图和收件箱截图见 [`docs/assets/`](../docs/assets/)，完整结果与限制见 [`docs/TEST-EVIDENCE.md`](../docs/TEST-EVIDENCE.md)。
+当前 Compose n8n 2.42.5 实例已通过 Web UI 导入、凭据绑定并发布两个工作流。Production Webhook 的运行时集成检查已实测未授权、无效、创建、重放及冲突分支；实际建单保持 `requested`，没有批准退款。更新后的 Operations Digest 在容器重启后手动触发成功；随后 2026-10-10 09:00:53（Asia/Shanghai）每日计划实际触发，n8n 执行记录 ID `20` 显示 Succeeded（110 ms），Mailpit 收到来自实时 API 查询的角色待办和下一步动作。对应工作流与运行证据截图见 [`docs/assets/`](../docs/assets/)，完整结果与限制见 [`docs/TEST-EVIDENCE.md`](../docs/TEST-EVIDENCE.md)。
 
 工作流与凭据保存在本地 n8n volume 中，不会随仓库导出 JSON 提交。新建或重置 volume 后仍需按上一节重新初始化和绑定凭据；本地自动化 token、owner 登录和 Webhook Basic Auth 值只放在被忽略的 `.local/` 文件中。
 

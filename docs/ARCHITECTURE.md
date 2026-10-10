@@ -53,6 +53,6 @@ REQUESTED ──客服──> AUTHORIZED ──仓库──> RECEIVED ──仓�
 2. 在 n8n Web UI 导入 `n8n/workflows/01-return-intake.json` 和 `02-operations-digest.json`。
 3. 创建 `Custom Auth` 凭据，填入自动化 Bearer token 和组织 ID；不要将原始 token 保存进工作流 JSON。
 4. 绑定 Webhook Basic Auth 与 Email Send SMTP 凭据：SMTP 主机 `mailpit`、端口 `1025`、无 TLS/认证，收件人为 `operations@demo-store.example`。
-5. 手动运行摘要并检查 Mailpit，再发布工作流。Schedule Trigger 的自动时刻需在后续实际运行中单独观察。
+5. 手动运行摘要并检查 Mailpit，再发布工作流。每日计划在 `GENERIC_TIMEZONE` 配置的时区运行；当前本地实测记录见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。
 
-当前本地 n8n 2.42.5 已实际导入、绑定凭据并发布两个工作流；生产 Intake Webhook 创建合成工单，手动 Digest 已通过 Mailpit 验证。所有服务只绑定 loopback；Fake Payment 和 Mailpit 为本地服务，不会触达真实支付或外发邮件。测试细节与尚未验证的边界见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。
+当前本地 n8n 2.42.5 已实际导入、绑定凭据并发布两个工作流；生产 Intake Webhook 创建合成工单，手动 Digest 与一次真实 09:00 定时 Digest 均通过 Mailpit 验证。所有服务只绑定 loopback；Fake Payment 和 Mailpit 为本地服务，不会触达真实支付或外发邮件。测试细节与尚未验证的边界见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。

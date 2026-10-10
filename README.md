@@ -107,12 +107,12 @@ npm run e2e:typecheck
 npm run test:e2e
 ```
 
-PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 `.\scripts\verify.ps1 -Integration`。本次证据包括 49 项 Python 测试通过、Playwright 正常/异常流程、PostgreSQL integration tests、n8n 生产 Webhook 幂等与拒绝路径、Mailpit 实际收件。逐项结果及环境边界见 [`docs/TEST-EVIDENCE.md`](docs/TEST-EVIDENCE.md)。
+PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 `.\scripts\verify.ps1 -Integration`。本次证据包括 49 项 Python 测试通过、Playwright 正常/异常流程、PostgreSQL integration tests、n8n 生产 Webhook 幂等与拒绝路径、一次真实的 09:00 Asia/Shanghai 计划触发并成功投递到 Mailpit。逐项结果及环境边界见 [`docs/TEST-EVIDENCE.md`](docs/TEST-EVIDENCE.md)。
 
 ## 已知限制
 
 - Fake Payment 与 Mailpit 仅用于本地演示；未接入真实支付、外部 SMTP 或生产 ERP，也不处理真实客户个人信息。
-- 邮件投递采用普通 SMTP：执行重试可能产生重复摘要，SMTP 超时也不代表 Mailpit 未收信；不宣称 exactly-once。每日计划已发布，但当前验收只观察了手动触发结果。
+- 邮件投递采用普通 SMTP：执行重试可能产生重复摘要，SMTP 超时也不代表 Mailpit 未收信；不宣称 exactly-once。每日计划已在 2026-10-10 09:00（Asia/Shanghai）观察到一次成功执行；单次观测不代表长期调度可靠性。
 - Playwright 与 n8n runtime 测试会在持久化演示库留下合成工单；它们不是客户数据。`reset-demo.ps1` 会清空本项目命名卷且不可逆，必须手动确认。
 - 没有真实企业采用率、节省工时或差错率的测量；这些效果尚未验证。
 
@@ -120,4 +120,4 @@ PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 
 
 - [架构与安全边界](docs/ARCHITECTURE.md) · [演示步骤](docs/DEMO.md) · [作品集案例](docs/PORTFOLIO.md)
 - [录屏脚本](docs/RECORDING.md) · [测试证据](docs/TEST-EVIDENCE.md) · [初始仓库基线](docs/BASELINE.md)
-- [Mailpit 摘要收件箱](docs/assets/mailpit-summary-inbox.png) · [n8n Intake 节点图](docs/assets/n8n-01-return-intake.png) · [n8n Digest 节点图](docs/assets/n8n-02-operations-digest.png)
+- [Mailpit 摘要收件箱](docs/assets/mailpit-summary-inbox.png) · [n8n Intake 节点图](docs/assets/n8n-01-return-intake.png) · [n8n Digest 节点图](docs/assets/n8n-02-operations-digest.png) · [n8n 定时摘要成功执行](docs/assets/n8n-02-scheduled-execution.png)

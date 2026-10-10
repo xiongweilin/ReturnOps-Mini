@@ -18,7 +18,7 @@
 | `docker compose ps` | PostgreSQL、API、Fake Payment、Mailpit 健康；前端、n8n、worker 运行中。主机端口仅绑定 `127.0.0.1` |
 | `n8n/workflows/*.json` | JSON 与静态节点/凭证约束测试通过；两个工作流已在 n8n **2.42.5** UI 导入、绑定本地凭据并发布 |
 | Intake 生产 Webhook | 运行时集成测试通过所有分支；固定合成事件在 ReturnOps API 中保留工单 `RET-4B014F9106`，状态 `requested`。没有触发退款 |
-| Operations Digest | 重启后再次手动运行成功；2026-10-10（Asia/Shanghai）最新邮件包含实时 API 待办、负责角色及下一步动作；当前本地收件箱共 5 封摘要。未连接真实 SMTP |
+| Operations Digest | 容器重启后手动执行成功；随后每日 Schedule Trigger 于 2026-10-10 09:00:53（Asia/Shanghai）自动触发，n8n 执行记录 ID `20` 显示 Succeeded（110 ms），Mailpit 收到来自实时 API 摘要的邮件，含待办、负责角色及下一步动作；当前本地收件箱共 6 封摘要。未连接真实 SMTP |
 | 容器重启持久化 | 在不删除任何卷的前提下重启 PostgreSQL、API、worker、前端、Fake Payment、n8n 与 Mailpit；演示工单仍存在，超时样例的支付方记录仍为 `succeeded` 且 `post_count=1`，Mailpit 邮件保留；重启后 `verify-demo.ps1`、n8n Intake 集成检查与 Digest 手动执行均再次成功 |
 
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
@@ -33,11 +33,12 @@ PostgreSQL 集成测试另行使用 Compose 数据库中的临时 schema，测�
 - [ReturnFlow UNKNOWN 安全暂停与恢复](assets/returnflow-unknown-before-reconcile.png)、[权威查询证据](assets/returnflow-unknown-recovered.png)
 - [n8n Return Intake 节点图](assets/n8n-01-return-intake.png)
 - [n8n Operations Digest 节点图](assets/n8n-02-operations-digest.png)
+- [n8n 定时摘要执行记录](assets/n8n-02-scheduled-execution.png)
 - [Mailpit 摘要收件箱](assets/mailpit-summary-inbox.png)
 
 ## 尚未验证 / 边界
 
-- Operations Digest 的**手动**执行和 Mailpit 投递已验证；虽然每日 09:00 Schedule Trigger 已发布，但尚未等待真实计划时刻验证自动调度。
+- 真实每日计划已观察一次：2026-10-10 09:00:53（Asia/Shanghai）n8n 执行成功并由 Mailpit 收件。单次成功不证明长期调度可靠性；未连接真实 SMTP，也未验证 SMTP 重试的 exactly-once 交付（本系统不作此承诺）。
 - Playwright 浏览器端到端流程通过本地 Compose 前端/API 运行在 PostgreSQL 演示库上；随机生成的合成测试工单会保留在命名卷中。PostgreSQL 集成测试则使用每次单独创建、结束后清理的临时 schema。
 - 未连接真实邮件服务或支付服务。Mailpit 与 Fake Payment 均为本地服务，不会产生外发邮件或真实退款。
 - owner 与凭据保存在被 Git 忽略的 `.local/` 文件及本地 n8n 命名卷中；工作流 JSON 与截图不含秘密。新建/重置 n8n volume 后仍需按 [`README.md`](../README.md) 和 [`n8n/README.md`](../n8n/README.md) 初始化 owner、导入工作流并绑定本地凭据。
