@@ -2,6 +2,8 @@
 
 ## 业务背景
 
+实际运行演示：[播放 4–5 分钟中文视频](assets/returnflow-demo.mp4) · [中文字幕](assets/returnflow-demo.zh-CN.srt) · [录屏流程](RECORDING.md)。
+
 模拟一家中小型电商商户。退货退款需要客服确认资格、仓库收货验货、财务审批与对账；实际支付状态还可能在超时或 Webhook 延迟时不确定。
 
 ## 原始问题
@@ -24,7 +26,7 @@
 
 - 本地完整 Compose 栈运行；Python 全量测试 **49 passed**，其中包含 PostgreSQL integration 测试；Ruff、前端 production build、Lint 与 E2E 类型检查通过。
 - Playwright 通过本地操作台完成正常退款闭环、高额不同审批人验证、UNKNOWN 权威查询恢复，以及客服身份无法审批的浏览器/API 验收。
-- n8n **2.42.5** 两条工作流已在 Web UI 导入、凭据绑定并发布。生产 Intake Webhook 集成检查实测：无 Basic Auth 返回 401、无效请求返回 400、有效请求创建 `requested` 工单、相同事件重放返回同一工单、同幂等键改内容返回 409。
+- n8n **2.42.5** 两条工作流由 `start-demo.ps1` 自动 upsert、绑定本地凭据并发布；新 volume 不再要求手动 owner/import/bind/publish。生产 Intake Webhook 集成检查实测：无 Basic Auth 返回 401、无效请求返回 400、有效请求创建 `requested` 工单、相同事件重放返回同一工单、同幂等键改内容返回 409。
 - 更新后的 Digest 手动执行成功；随后每日 09:00 Schedule Trigger 于 2026-10-10 09:00:53（Asia/Shanghai）实际触发，n8n 执行记录 ID `20` 显示 Succeeded（110 ms）。Mailpit 最新邮件包含 API 汇总的待处理工单、负责角色和下一步动作。
 - 未删除卷而重启整个长驻 Compose 栈后，API 工单、Fake Payment 的权威退款记录（`post_count=1`）、n8n 发布状态和 Mailpit 邮件均保留；重启后的 Intake 集成检查与 Digest 手动发送仍成功。
 - 界面及工作流截图：[总览](assets/returnflow-overview.png)、[正常闭环](assets/returnflow-closed-case.png)、[高额第二人审批](assets/returnflow-second-approver.png)、[UNKNOWN 暂停](assets/returnflow-unknown-before-reconcile.png)、[恢复证据](assets/returnflow-unknown-recovered.png)、[n8n Intake](assets/n8n-01-return-intake.png)、[n8n Digest](assets/n8n-02-operations-digest.png)、[n8n 定时执行成功](assets/n8n-02-scheduled-execution.png)、[Mailpit 收件箱](assets/mailpit-summary-inbox.png)。

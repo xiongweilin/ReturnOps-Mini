@@ -7,6 +7,8 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
+▶ [Watch the 4–5 minute local demo](docs/assets/returnflow-demo.mp4) · [Chinese subtitles](docs/assets/returnflow-demo.zh-CN.srt) · [portfolio case](docs/PORTFOLIO.md)
+
 ReturnOps Mini is a deliberately small multi-tenant returns and refunds SaaS that still preserves real engineering risks. It is neither a production e-commerce platform nor a showcase for how much code AI can generate. It is a compact, complete product for training **engineering judgment**.
 
 The repository extracts the most instructive reliability problems from `commerce-orchestrator` and `administrative-orchestrator`: tenant isolation, role permissions, state machines, optimistic concurrency control, idempotency, Outbox, external side effects, unknown outcomes, webhook deduplication, reconciliation, migrations, and auditing. At the same time, it deliberately removes DBOS, Kafka, Redis, general workflow engines, CQRS, and other infrastructure that would hide the basic mechanisms.
@@ -136,18 +138,19 @@ For a first read, use: `docs/invariants.md` → `domain/states.py` → `services
 
 ## 5. Quick start
 
-Docker and Compose v2 are required:
+Install Docker Compose v2, PowerShell 7 (`pwsh`), Node.js 24+, and npm. From a clean checkout, run one command:
 
-```bash
-docker compose up --build -d
-docker compose run --rm api python -m returnops.seed
+```powershell
+pwsh ./scripts/start-demo.ps1
 ```
 
-The seed command prints an Organization ID and demo bearer tokens for several roles. Open `http://localhost:8000/`, paste the Organization ID and the matching role token into the console, and advance the workflow according to that role.
+The script generates ignored local secrets, builds/starts the Compose stack, seeds synthetic data, initializes the n8n owner, installs the locked local Playwright toolchain if needed, creates a short-lived local n8n API key, and creates/binds/publishes both workflows. No manual n8n UI import, credential binding, or publishing is required. Re-running it is idempotent; all owner/bootstrap/runtime secrets stay under ignored `.env` and `.local/` and must not be committed.
 
-Service endpoints: API `http://localhost:8000`, API health `http://localhost:8000/health`, Fake payment `http://localhost:8090/health`.
+Service endpoints (defaults): ReturnFlow UI `http://127.0.0.1:4173`, API docs `http://127.0.0.1:8000/docs`, API health `http://127.0.0.1:8000/health`, n8n `http://127.0.0.1:5678`, Mailpit `http://127.0.0.1:8025`, and Fake Payment health `http://127.0.0.1:8090/health`.
 
 ## 6. Tests and evidence levels
+
+The regular GitHub CI includes a frontend job for `npm ci`, production build, lint, and E2E type checking. The full browser E2E and n8n/Mailpit runtime suite is a separate manually dispatched [controlled workflow](.github/workflows/demo-integration.yml), which creates and removes its own Compose project/volumes.
 
 Fast tests:
 

@@ -1,9 +1,11 @@
 # 录屏提纲（约 4–5 分钟）
 
+成品：[播放真实 UI 录制](assets/returnflow-demo.mp4) · [简体中文字幕](assets/returnflow-demo.zh-CN.srt)。如需重新录制，在本地启动 Docker/n8n 后运行 `scripts/record-demo-video.ps1`；录制会创建合成工单/UNKNOWN 案例并向本机 Mailpit 发送摘要，原始视频和 TTS 暂存于 Git 忽略的 `.local/`。
+
 ## 录屏前
 
-1. `pwsh` 运行 `scripts/start-demo.ps1`，确认前端与 API 健康。
-2. 新建 n8n volume 时运行 `scripts/bootstrap-n8n-demo.ps1`，再导入两个 JSON、绑定凭证并发布；当前本地实例已完成这些步骤。
+1. `pwsh` 运行 `scripts/start-demo.ps1`，确认前端、API 和两个已发布 n8n 工作流健康。
+2. 新建 n8n volume 无须人工导入/绑定；启动脚本已自动配置 owner、credentials 和 workflows。若完整初始化失败，先修复提示中的依赖/配置再重跑，不要删除演示卷。
 3. Mailpit 用于查看演示邮件；检查屏幕没有真实个人信息、密码、token、`.env` 内容或数据库凭证。
 4. 使用种子生成的虚构订单；不要在录屏里打开 `.local/automation-token.txt`。
 

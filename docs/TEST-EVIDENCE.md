@@ -10,16 +10,26 @@
 | `ruff check src/returnops src/fake_payment tests` | 通过 |
 | `npm run build` | 通过（TypeScript + Vite production bundle） |
 | `npm run e2e:typecheck` | 通过 |
+| GitHub `frontend` CI job | 独立执行 `npm ci`、`npm run build`、`npm run lint` 和 `npm run e2e:typecheck`；随每次 CI 运行 |
 | `npm run test:e2e` | **3 passed, 1 skipped**；普通闭环、高额不同审批人、客服无权审批（UI 隐藏且 API 返回 403），通过本地 Compose 前端/API 执行 |
 | `npm run test:e2e:fault` | **1 passed**；UNKNOWN、单次派发、无盲目重试、权威查询、对账和结案，通过本地演示栈执行 |
 | `npm run lint` | 通过，无 lint warning |
 | PowerShell 设置 `RUN_N8N_INTEGRATION` 后执行 `npm run test:n8n` | **通过**；Production Webhook 实测 401 未授权、400 无效输入、201 建单、201 同工单重放、409 内容冲突；不会将失败标记为已接受 |
 | `scripts/verify-demo.ps1` | Compose 服务列表和 ReturnOps API、演示模式、前端、n8n 编辑器、Mailpit 页面检查通过 |
 | `docker compose ps` | PostgreSQL、API、Fake Payment、Mailpit 健康；前端、n8n、worker 运行中。主机端口仅绑定 `127.0.0.1` |
-| `n8n/workflows/*.json` | JSON 与静态节点/凭证约束测试通过；两个工作流已在 n8n **2.42.5** UI 导入、绑定本地凭据并发布 |
+| `n8n/workflows/*.json` | JSON 与静态节点/凭证约束测试通过；全新 n8n **2.42.5** volume 由 `start-demo.ps1` 自动创建/绑定三项本地凭据、upsert 并发布两个工作流，无需 UI 手工导入或逐节点配置 |
 | Intake 生产 Webhook | 运行时集成测试通过所有分支；固定合成事件在 ReturnOps API 中保留工单 `RET-4B014F9106`，状态 `requested`。没有触发退款 |
 | Operations Digest | 容器重启后手动执行成功；随后每日 Schedule Trigger 于 2026-10-10 09:00:53（Asia/Shanghai）自动触发，n8n 执行记录 ID `20` 显示 Succeeded（110 ms），Mailpit 收到来自实时 API 摘要的邮件，含待办、负责角色及下一步动作；当前本地收件箱共 6 封摘要。未连接真实 SMTP |
 | 容器重启持久化 | 在不删除任何卷的前提下重启 PostgreSQL、API、worker、前端、Fake Payment、n8n 与 Mailpit；演示工单仍存在，超时样例的支付方记录仍为 `succeeded` 且 `post_count=1`，Mailpit 邮件保留；重启后 `verify-demo.ps1`、n8n Intake 集成检查与 Digest 手动执行均再次成功 |
+| `npm run test:n8n:digest` | **通过**；Playwright 在 n8n UI 手动运行已发布 Digest，收到新的 Mailpit 邮件，正文包含实时待办与客服/仓库/财务角色 |
+| 全新环境 `start-demo.ps1` | 从不含 `.env`、`.local`、`frontend/node_modules` 或 `.git` 的源代码副本开始，创建空 Compose 项目/数据卷；单次命令完成 Seed、owner、90 天 API key、本地 credentials、两条已发布工作流；第二次运行复用同一 workflow ID/key 并未产生重复资源，无人工 n8n UI 步骤 |
+| 受控完整演示验证 | 同一干净 Compose 项目中 `verify-demo.ps1`、普通 Playwright E2E（3 passed/1 skipped）、UNKNOWN recovery E2E（1 passed）、n8n Webhook 分支、Digest→Mailpit 均通过；真实支付与外部 SMTP 未连接 |
+
+### 首次部署干净环境复现
+
+在 Windows PowerShell 7 中从新源代码副本开始；副本没有 `.env`、`.local/`、`frontend/node_modules/` 或 `.git/`，并使用新的 Compose 项目和命名卷。唯一的部署操作是运行 `scripts/start-demo.ps1`：它生成被忽略的本地环境/owner/Webhook 凭据，执行 Seed、安装锁定的 npm 工具链、创建并校验本地 n8n API key，再通过 n8n API 创建/更新凭据、导入两份 JSON 并发布。全程没有人工登录 n8n、点击 Import、逐节点绑定或手工 Publish。随后 `scripts/verify-demo.ps1` 和 Intake/Digest 运行时检查通过；再次运行 `start-demo.ps1` 复用现有 key 与 workflow ID，不重复创建。
+
+干净环境试跑时，一个临时自选 API 端口曾与同机独立运行的 AIOS 服务冲突，另一次首次镜像构建遇到 PyPI TLS EOF；选择未占用的 loopback 端口并重试后，独立项目成功启动。问题均为测试主机资源/瞬时网络，不修改或清理其他 Compose 项目数据。
 
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
 
@@ -41,5 +51,5 @@ PostgreSQL 集成测试另行使用 Compose 数据库中的临时 schema，测�
 - 真实每日计划已观察一次：2026-10-10 09:00:53（Asia/Shanghai）n8n 执行成功并由 Mailpit 收件。单次成功不证明长期调度可靠性；未连接真实 SMTP，也未验证 SMTP 重试的 exactly-once 交付（本系统不作此承诺）。
 - Playwright 浏览器端到端流程通过本地 Compose 前端/API 运行在 PostgreSQL 演示库上；随机生成的合成测试工单会保留在命名卷中。PostgreSQL 集成测试则使用每次单独创建、结束后清理的临时 schema。
 - 未连接真实邮件服务或支付服务。Mailpit 与 Fake Payment 均为本地服务，不会产生外发邮件或真实退款。
-- owner 与凭据保存在被 Git 忽略的 `.local/` 文件及本地 n8n 命名卷中；工作流 JSON 与截图不含秘密。新建/重置 n8n volume 后仍需按 [`README.md`](../README.md) 和 [`n8n/README.md`](../n8n/README.md) 初始化 owner、导入工作流并绑定本地凭据。
+- owner、短期 bootstrap API key 与运行时凭据保存在被 Git 忽略的 `.local/` 文件及本地 n8n 加密卷中；工作流 JSON 与截图不含秘密。新建/重置 volume 后重跑 `scripts/start-demo.ps1` 自动恢复 owner、凭据和已发布工作流；需要 Docker Desktop、Node.js 24+、npm，以及首次依赖/镜像拉取时的网络。
 - [`BASELINE.md`](BASELINE.md) 是首次实施前的历史基线，其中的“Docker 不可用 / n8n 未运行”只描述当时状态；当前运行时证据以本文件为准。

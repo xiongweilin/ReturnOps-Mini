@@ -8,11 +8,11 @@
 .\scripts\start-demo.ps1
 ```
 
-首次启动自动创建忽略的 `.env` 并生成本地随机密钥；演示不需要把密钥复制到浏览器、工作流 JSON 或录屏。常用页面：
+首次启动自动创建忽略的 `.env` 与随机密钥、Seed 演示数据、初始化 n8n owner、绑定凭据并发布两个工作流；无需人工进入 n8n 做导入/绑定。需安装 Docker Desktop、Node.js 24+ 和 npm；首次运行会下载镜像及 Playwright Chromium。所有密钥只存在忽略的 `.env`/`.local`，不要复制到浏览器表单、工作流 JSON 或录屏。常用页面：
 
 - 前端：<http://127.0.0.1:4173>
 - API 文档：<http://127.0.0.1:8000/docs>
-- n8n：<http://127.0.0.1:5678>（首次设置 owner）
+- n8n：<http://127.0.0.1:5678>（首次启动后已初始化并发布工作流）
 - Mailpit：<http://127.0.0.1:8025>
 
 ## 2. 种子数据
@@ -96,7 +96,7 @@ npm run test:e2e:fault
 
 ## 6. 邮件摘要与终止
 
-在 n8n 中手动运行 Operations Digest 工作流，然后在 Mailpit 查看 `operations@demo-store.example`。默认日程为 `Asia/Shanghai` 09:00；首次导入后先手动测试，再发布工作流。要重复验证自动调度，在 09:00 前保持本地栈运行，随后在该工作流的 **Executions** 中检查 `Succeeded` 执行并在 Mailpit 确认对应邮件。当前本地实例已于 2026-10-10 09:00:53 实际运行成功一次，详情见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。摘要中的待办与角色来自 ReturnOps 当前 API 数据。
+在 n8n 中手动运行 Operations Digest 工作流，然后在 Mailpit 查看 `operations@demo-store.example`。工作流已由 `start-demo.ps1` 自动发布；默认日程为 `Asia/Shanghai` 09:00。要重复验证自动调度，在 09:00 前保持本地栈运行，随后在该工作流的 **Executions** 中检查 `Succeeded` 执行并在 Mailpit 确认对应邮件。当前本地实例已于 2026-10-10 09:00:53 实际运行成功一次，详情见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。摘要中的待办与角色来自 ReturnOps 当前 API 数据。
 
 ```powershell
 .\scripts\verify-demo.ps1

@@ -1,0 +1,57 @@
+[
+  {
+    "id": "overview",
+    "caption": "ReturnFlow 演示｜虚构订单 · 本地模拟支付与邮件",
+    "narration": "ReturnFlow 是一套面向中小型电商的退货退款工作台。画面中的订单、客户引用、金额和审批记录都是合成数据；支付方与邮件服务也都限定在本机。接下来从自动接单，一路走到财务结案。"
+  },
+  {
+    "id": "intake-workflow",
+    "caption": "n8n Intake：鉴权、校验、稳定幂等键、调用 ReturnOps API",
+    "narration": "第一条 n8n 工作流接收带 Basic Auth 的生产 Webhook。它先校验事件编号、订单引用和退款金额，再映射成 ReturnOps API 请求，并使用稳定的幂等键。n8n 只负责外围编排；业务状态、权限和审计仍由 API 管理。"
+  },
+  {
+    "id": "webhook-case",
+    "caption": "生产 Webhook 建单：成功受理 · 同一 event_id 重放同一工单",
+    "narration": "这里触发一笔新的虚构退货事件。一次授权调用创建待审核工单；重复投递相同 event_id 会重放同一工单，而没有授权或输入不合格时不会报告成功。工作台随后直接显示这笔来自自动化入口的申请。"
+  },
+  {
+    "id": "customer-warehouse",
+    "caption": "客服审核 → 仓库收货与验货：角色分离、服务端门禁",
+    "narration": "客服先审核退货资格并记录理由，随后仓库确认收货、提交验货结论。两个角色拥有不同的可执行动作，服务端也会重新检查身份与版本，不能靠修改浏览器或重复点击越权推进。"
+  },
+  {
+    "id": "finance-close",
+    "caption": "财务审批 → Fake Payment 证据 → 对账结案",
+    "narration": "财务审批金额后，后台工作进程调用本地 Fake Payment。这里展示的是本地模拟退款证据，而不是外部支付；支付引用、派发次数和审计事件都能从工单详情追溯。财务确认对账后，工单才可以结案。"
+  },
+  {
+    "id": "four-eyes",
+    "caption": "高额退款双人复核：第一位财务审批后不能重复批准",
+    "narration": "高额退款采用双人复核。第一位财务人员记录审批后，自己不能再批准同一工单；系统要求另一位财务人员复核并展示既有批准金额，避免一名操作者完成全部关键步骤。"
+  },
+  {
+    "id": "unknown-pause",
+    "caption": "REFUND_UNKNOWN：响应超时 · 支付只派发一次 · 不盲目重试",
+    "narration": "外部调用超时不等于支付失败。本例的 Fake Payment 已记录退款，但响应返回前模拟超时，因此工单进入 REFUND_UNKNOWN。界面明确显示派发一次并隐藏重试入口；系统暂停等待证据，不猜测支付结果。"
+  },
+  {
+    "id": "unknown-reconcile",
+    "caption": "财务查询权威支付方记录 → 确认事实 → 对账结案",
+    "narration": "财务人员通过只读的支付方查询取得权威状态，并把查询结果记入审计时间线。确认支付已成功后，才继续对账和结案；恢复过程没有再发起退款，避免不确定结果下的重复支付。"
+  },
+  {
+    "id": "digest-workflow",
+    "caption": "Operations Digest：读取实时总览 · 组织角色待办 · 发送摘要",
+    "narration": "第二条 n8n 工作流读取 ReturnOps API 的实时总览，按角色组织待处理工单和下一步动作，再交给 SMTP 节点发送。本次触发是手动验收入口；同一工作流也包含每天早上九点的计划触发器。"
+  },
+  {
+    "id": "digest-mailpit",
+    "caption": "Mailpit 收件：虚构邮箱 · 本机隔离 · 摘要来自业务 API",
+    "narration": "邮件最终进入本机 Mailpit，收件地址是虚构域名，内容只来自业务 API 汇总。演示没有连接真实 SMTP，也不会把客户数据发送到外部；多次手动触发可能产生重复摘要，这里不承诺 exactly-once 邮件投递。"
+  },
+  {
+    "id": "architecture-close",
+    "caption": "ReturnOps 管状态与授权 · n8n 管外围编排 · 全流程一键复现",
+    "narration": "这套演示的边界很明确：ReturnOps API 拥有唯一业务状态与授权，n8n 只负责外围编排和通知，Fake Payment 与 Mailpit 是本地替身。全新环境只需一条启动命令；脚本自动创建、绑定并发布工作流，测试与证据在仓库中可复现。"
+  }
+]

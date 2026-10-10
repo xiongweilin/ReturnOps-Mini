@@ -11,6 +11,7 @@
     "test:e2e": "playwright test",
     "test:e2e:fault": "playwright test --grep=UNKNOWN",
     "test:n8n": "node scripts/test-n8n-integration.mjs",
+    "test:n8n:digest": "node scripts/test-n8n-digest.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
