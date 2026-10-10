@@ -25,6 +25,11 @@ function New-LocalSecret {
 
 Push-Location $repositoryRoot
 try {
+    $localDirectory = Join-Path $repositoryRoot '.local'
+    if (-not (Test-Path -LiteralPath $localDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $localDirectory | Out-Null
+    }
+
     if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
         $envText = [System.IO.File]::ReadAllText($examplePath, [System.Text.Encoding]::UTF8)
         $envText = [regex]::Replace(

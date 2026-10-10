@@ -31,6 +31,12 @@
 
 干净环境试跑时，一个临时自选 API 端口曾与同机独立运行的 AIOS 服务冲突，另一次首次镜像构建遇到 PyPI TLS EOF；选择未占用的 loopback 端口并重试后，独立项目成功启动。问题均为测试主机资源/瞬时网络，不修改或清理其他 Compose 项目数据。
 
+### 2026-10-10 README 干净环境复现
+
+本轮从 `main` 合并提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 的 Git archive 建立全新源代码副本；副本初始不含 `.git/`、`.env`、`.local/` 或 `frontend/node_modules/`，使用独立 Compose 项目和全新命名卷。按 README 调用 `scripts/start-demo.ps1` 两次：首次生成本地配置并创建/发布两条 n8n 工作流，第二次复用已有资源；`scripts/verify-demo.ps1` 通过。`npm ci`、Chromium 安装、普通浏览器 E2E（3 passed、1 skipped）、UNKNOWN 恢复 E2E（1 passed）、n8n Intake Webhook（401、400、201、同事件重放 201、冲突 409）以及 Digest→Mailpit 邮件检查均通过。未知退款场景确认 Fake Payment 已保存退款、无 Webhook；财务权威查询后完成对账。复现后仅停止本轮独立 Compose 项目，保留其数据卷。
+
+受控 GitHub Actions 首次运行在合并后的 `main` 提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 上触发：[run 38034480552](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38034480552)。Ubuntu 干净 runner 在 Seed 写入 `.local/organization-id.txt` 时遇到权限拒绝，未进入后续浏览器、UNKNOWN、n8n 与邮件验证。原因是 Compose bind mount 在宿主机 `.local/` 尚不存在时创建了 root 所有目录；`scripts/start-demo.ps1` 已调整为在启动 Compose 前创建宿主机目录。后续受控运行结果将在完成后补录。
+
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
 
 PostgreSQL 集成测试另行使用 Compose 数据库中的临时 schema，测试退出时删除这些 schema；不复用或清空演示数据。n8n Runtime 检查使用固定 `event_id`，同事件重复执行返回同一工单；冲突和输入错误不会新建业务记录。

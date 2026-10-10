@@ -2,7 +2,7 @@
 
 ## 业务背景
 
-实际运行演示：[播放 4–5 分钟中文视频](assets/returnflow-demo.mp4) · [中文字幕](assets/returnflow-demo.zh-CN.srt) · [录屏流程](RECORDING.md)。
+实际运行演示：[播放 4–5 分钟中文视频](assets/returnflow-demo.mp4) · [中文字幕](assets/returnflow-demo.zh-CN.srt) · [录屏流程](RECORDING.md)。面试讲述提纲见[求职讲解稿](INTERVIEW-PITCH.md)。
 
 模拟一家中小型电商商户。退货退款需要客服确认资格、仓库收货验货、财务审批与对账；实际支付状态还可能在超时或 Webhook 延迟时不确定。
 
