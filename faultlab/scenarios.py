@@ -146,7 +146,9 @@ def prepare_case(db: Session, label: str) -> tuple[object, ReturnCase, RefundAtt
 
 def scenario_payment_latency(session_factory, provider) -> None:
     reset_database(session_factory)
-    set_simulation_mode("normal")
+    # This scenario measures the synchronous refund response budget. Avoid
+    # background Webhook work racing with the next scenario's database reset.
+    set_simulation_mode("no_webhook")
     clear_toxics("payment")
     try:
         add_toxic(
@@ -214,7 +216,8 @@ def scenario_ack_lost(session_factory, provider) -> None:
     clear_toxics("payment")
     try:
         # provider 契约：先持久化成功，再扣住 ACK 直到调用方超时。
-        set_simulation_mode("timeout_after_processing")
+        # Keep this recovery scenario independent of asynchronous Webhook delivery.
+        set_simulation_mode("timeout_after_processing_no_webhook")
         with session_factory() as db:
             seeded, case, attempt = prepare_case(db, "ack")
             dispatch_for_case(db, provider, attempt.id)

@@ -124,6 +124,6 @@ PostgreSQL 并发/时序测试需设置 `RETURNOPS_TEST_DATABASE_URL` 后执行 
 
 ## 项目材料
 
-- [架构与安全边界](docs/ARCHITECTURE.md) · [演示步骤](docs/DEMO.md) · [作品集案例](docs/PORTFOLIO.md)
+- [架构与安全边界](docs/ARCHITECTURE.md) · [演示步骤](docs/DEMO.md) · [作品集案例](docs/PORTFOLIO.md) · [求职讲解稿](docs/INTERVIEW-PITCH.md)
 - [录屏脚本](docs/RECORDING.md) · [测试证据](docs/TEST-EVIDENCE.md) · [初始仓库基线](docs/BASELINE.md)
 - [Mailpit 摘要收件箱](docs/assets/mailpit-summary-inbox.png) · [n8n Intake 节点图](docs/assets/n8n-01-return-intake.png) · [n8n Digest 节点图](docs/assets/n8n-02-operations-digest.png) · [n8n 定时摘要成功执行](docs/assets/n8n-02-scheduled-execution.png)

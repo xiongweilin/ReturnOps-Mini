@@ -31,6 +31,20 @@
 
 干净环境试跑时，一个临时自选 API 端口曾与同机独立运行的 AIOS 服务冲突，另一次首次镜像构建遇到 PyPI TLS EOF；选择未占用的 loopback 端口并重试后，独立项目成功启动。问题均为测试主机资源/瞬时网络，不修改或清理其他 Compose 项目数据。
 
+### 2026-10-10 README 干净环境复现
+
+本轮从 `main` 合并提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 的 Git archive 建立全新源代码副本；副本初始不含 `.git/`、`.env`、`.local/` 或 `frontend/node_modules/`，使用独立 Compose 项目和全新命名卷。按 README 调用 `scripts/start-demo.ps1` 两次：首次生成本地配置并创建/发布两条 n8n 工作流，第二次复用已有资源；`scripts/verify-demo.ps1` 通过。`npm ci`、Chromium 安装、普通浏览器 E2E（3 passed、1 skipped）、UNKNOWN 恢复 E2E（1 passed）、n8n Intake Webhook（401、400、201、同事件重放 201、冲突 409）以及 Digest→Mailpit 邮件检查均通过。未知退款场景确认 Fake Payment 已保存退款、无 Webhook；财务权威查询后完成对账。复现后仅停止本轮独立 Compose 项目，保留其数据卷。
+
+受控 GitHub Actions 首次运行在合并后的 `main` 提交 `beacc62702ffd692684abdee6bd461f99752aa7f` 上触发：[run 38034480552](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38034480552)。Ubuntu 干净 runner 在 Seed 写入 `.local/organization-id.txt` 时遇到权限拒绝，未进入后续浏览器、UNKNOWN、n8n 与邮件验证。原因是 Compose bind mount 在宿主机 `.local/` 尚不存在时创建了 root 所有目录；`scripts/start-demo.ps1` 已调整为在启动 Compose 前创建宿主机目录。
+
+修复目录问题后的 [run 38035544448](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38035544448) 通过栈启动、基础浏览器流程和 UNKNOWN 创建，但恢复测试查找默认订单 `DEMO-ORDER-UNKNOWN-002`，而前置脚本创建了 `DEMO-ORDER-UNKNOWN-981`；浏览器找不到目标工单，后续 Intake 与 Digest 步骤因此跳过。workflow 现通过同一个 `RETURNFLOW_UNKNOWN_ORDER_REF` 环境值同时配置创建脚本和恢复测试。
+
+最终 [run 38035879608](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38035879608) 在干净 Ubuntu runner 上以代码提交 `4e9e588b37cb8e417c4d7902182a07036eda0276` 成功完成：自动启动及配置 n8n、完整栈检查、普通浏览器 E2E、创建 UNKNOWN 场景、浏览器权威查询/对账/结案恢复、Production Intake Webhook、Digest→Mailpit，以及临时 Compose 项目与测试卷清理，所有步骤均为 success。测试过的应用与 workflow 代码在最终记录运行号的文档提交中未变更。
+
+PR 常规 CI 首轮 [run 38036341354](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38036341354) 的 8 项中有 7 项通过；Fault Lab 在重置场景数据时与仍在执行的 Fake Payment Webhook 发生 PostgreSQL 死锁。Fault Lab 的同步响应延迟与 UNKNOWN 对账场景已切换为不投递非目标 Webhook，隔离异步请求对下一个场景的影响。随后 [run 38036635498](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38036635498) 的 8 项 PR 检查全部通过，包括四类 Fault Lab 场景、性能契约、前端、PostgreSQL 集成、依赖/镜像扫描、变异测试、质量和 hygiene 检查。
+
+视频与文字说明抽样核对：MP4 时长为 297.2 秒，和约 4–5 分钟的录屏说明相符；简体中文字幕及 `RECORDING.md` 的时间线覆盖总览、Intake 幂等、岗位审批与高额二人复核、支付结果未知后的人工查询、Operations Digest 和 Mailpit 收件。对成片代表性画面的抽样检查显示这些 UI 与本轮浏览器、n8n 和 Mailpit 运行证据一致。视频和所有运行样例使用虚构数据、本地 Fake Payment 与 Mailpit。
+
 Playwright 浏览器流连接本地 Compose 前端/API、PostgreSQL、Fake Payment 与 worker，执行客服创建/审核、仓库收货/验货、普通退款、外部成功证据、财务对账和结案；客服身份对财务审批的直接 API 请求返回 403。超时场景中 Fake Payment 已保存退款、延迟响应超时且无 Webhook，UI 显示 `REFUND_UNKNOWN` 和派发次数 1；Finance 查询支付方记录后证实成功，随后完成对账与结案。端到端测试在持久化演示库中留下动态生成的 `DEMO-PLAYWRIGHT-*` 合成工单；故障测试另留下已结案的 `DEMO-ORDER-UNKNOWN-003`，n8n 生产 Webhook 留下 `DEMO-ORDER-N8N-LIVE-*` 与固定的 `DEMO-ORDER-N8N-RUNTIME-001` 工单。这些都不是客户数据。上述容器重启后仍可读取，且支付方仍只存在一次派发记录。
 
 PostgreSQL 集成测试另行使用 Compose 数据库中的临时 schema，测试退出时删除这些 schema；不复用或清空演示数据。n8n Runtime 检查使用固定 `event_id`，同事件重复执行返回同一工单；冲突和输入错误不会新建业务记录。
