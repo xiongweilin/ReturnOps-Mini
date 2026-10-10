@@ -60,6 +60,20 @@ PostgreSQL 集成测试另行使用 Compose 数据库中的临时 schema，测�
 - [n8n 定时摘要执行记录](assets/n8n-02-scheduled-execution.png)
 - [Mailpit 摘要收件箱](assets/mailpit-summary-inbox.png)
 
+### 2026-10-10 最新 main 修复后验收
+
+PR [#8](https://github.com/xiongweilin/ReturnOps-Mini/pull/8) 将就绪修复合并到 main，代码提交为 `fd9ce37448d57d8cc81ad71ac22a72c8bb393147`。修复前最新 main 的 [CI run 38037011756](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38037011756) 在 Fault Lab 性能步骤失败：`docker compose up -d --build` 已启动 API，但 `docker compose run --rm k6` 默认启动依赖并重建 API；`depends_on: service_started` 只表示容器已启动，不代表 HTTP 服务已就绪。日志显示 k6 随即请求时 API 连接被拒绝，最终失败率为 **5.27%（278/5274）**。
+
+`faultlab/run_perf.py` 现先轮询真实的 `http://127.0.0.1:8000/health`，要求 HTTP 200 且响应状态为 `ok`，最多等待 60 秒；随后以 `docker compose run --no-deps --rm k6` 启动 k6，避免重建已运行的 API。`faultlab/k6/perf_contract.js` 未修改，原阈值保持原样：`http_req_failed: ['rate<0.01']`、`http_req_duration: ['p(95)<500', 'p(99)<1000']`、`duplicate_effect: ['count==0']`。
+
+修复 PR 的[常规检查 run 38038353761](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38038353761) 全部通过。合并后的最新 main [CI run 38038495640](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38038495640) 在提交 `fd9ce37448d57d8cc81ad71ac22a72c8bb393147` 上 8 个 job 全部成功，包括 Fault Lab 故障场景和 k6 性能契约。
+
+常规 CI 全绿后，在同一 main 提交触发 [controlled demo integration run 38038686561](https://github.com/xiongweilin/ReturnOps-Mini/actions/runs/38038686561)，完整成功：隔离演示栈和 n8n 自动配置、服务检查、普通浏览器 E2E、UNKNOWN 支付创建与浏览器恢复、Production Intake Webhook、Operations Digest→Mailpit，以及该临时项目的清理。
+
+另从该 main 提交的 Git archive 建立干净源代码副本；初始不含 `.git/`、`.env`、`.local/` 或 `frontend/node_modules/`，使用独立 Compose 项目。按 README 两次运行 `scripts/start-demo.ps1`，每次后运行 `scripts/verify-demo.ps1`，均成功；第二次复用了已有 n8n 本地凭据和两个已发布工作流。API、PostgreSQL、Fake Payment、Mailpit 健康，前端、API、n8n 编辑器和 Mailpit 页面检查通过。随后 `scripts/stop-demo.ps1` 只停止该隔离项目并保留数据卷。启动过程中生成的本地密钥未显示或复制。
+
+求职讲解稿见 [`INTERVIEW-PITCH.md`](INTERVIEW-PITCH.md)，按业务问题、Return Intake 与 Operations Digest、岗位审批责任及退款结果未知后的人工查询和恢复来组织。最新 main 的受控运行覆盖录屏与演示文档描述的正常、审批、异常恢复和邮件摘要路径。此前记录的视频画面抽样检查所用 MP4、字幕和 `RECORDING.md` 在本次 main 更新中未改动；本轮未重新编码或逐帧复查视频。本节 CI 和受控演示绑定到修复提交 `fd9ce37448d57d8cc81ad71ac22a72c8bb393147`；本证据文档提交不改变被测代码。
+
 ## 尚未验证 / 边界
 
 - 真实每日计划已观察一次：2026-10-10 09:00:53（Asia/Shanghai）n8n 执行成功并由 Mailpit 收件。单次成功不证明长期调度可靠性；未连接真实 SMTP，也未验证 SMTP 重试的 exactly-once 交付（本系统不作此承诺）。
