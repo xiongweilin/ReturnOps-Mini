@@ -96,7 +96,7 @@ npm run test:e2e:fault
 
 ## 6. 邮件摘要与终止
 
-在 n8n 中手动运行 Operations Digest 工作流，然后在 Mailpit 查看 `operations@demo-store.example`。默认日程为 `Asia/Shanghai` 09:00；首次导入后先手动测试，再发布工作流。摘要中的待办与角色来自 ReturnOps 当前 API 数据。
+在 n8n 中手动运行 Operations Digest 工作流，然后在 Mailpit 查看 `operations@demo-store.example`。默认日程为 `Asia/Shanghai` 09:00；首次导入后先手动测试，再发布工作流。要重复验证自动调度，在 09:00 前保持本地栈运行，随后在该工作流的 **Executions** 中检查 `Succeeded` 执行并在 Mailpit 确认对应邮件。当前本地实例已于 2026-10-10 09:00:53 实际运行成功一次，详情见 [`TEST-EVIDENCE.md`](TEST-EVIDENCE.md)。摘要中的待办与角色来自 ReturnOps 当前 API 数据。
 
 ```powershell
 .\scripts\verify-demo.ps1

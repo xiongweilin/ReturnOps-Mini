@@ -17,7 +17,7 @@
 | 2:00–2:35 | 打开高额样例：Finance A 第一笔审批后看不到再次审批按钮；切到 Finance B，检查默认金额与第二人记录。 |
 | 2:35–3:35 | 运行 `scripts/run-unknown-demo.ps1 -OrderRef DEMO-ORDER-UNKNOWN-002`；在异常中心展示 `REFUND_UNKNOWN`、一次派发、无重试；点击权威查询，显示 Fake Payment 成功证据。 |
 | 3:35–4:05 | Finance 对账并结案，展示审计时间线中未知、查询、对账和结案的顺序。 |
-| 4:05–4:35 | 展示 n8n Intake/Digest 节点图、Production Webhook 创建的合成申请，以及 Mailpit 中的摘要邮件。若录制环境不能运行 Docker/n8n，则跳过这些运行时画面并说明 JSON 导出与凭据绑定边界。 |
+| 4:05–4:35 | 展示 n8n Intake/Digest 节点图、Production Webhook 创建的合成申请、一次成功的 09:00 Schedule Trigger 执行记录，以及 Mailpit 中的摘要邮件。若录制环境不能运行 Docker/n8n，则跳过这些运行时画面并说明 JSON 导出与凭据绑定边界。 |
 | 4:35–5:00 | 总结：API 管业务事实；n8n 管外围自动化；超时后宁可暂停并核查，不猜测支付结果或盲目重试。 |
 
 ## 建议截图清单
