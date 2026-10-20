@@ -85,5 +85,6 @@ An intentional reset needs separate confirmation:
 - [n8n integration](n8n/README.en.md)
 - [Fault injection harness](faultlab/README.en.md)
 - [Initial implementation baseline (historical)](docs/BASELINE.en.md)
+- [Contributing](CONTRIBUTING.en.md)
 
 This README describes the **current demonstration**. Historical measurements and initial baselines remain labeled by their original evidence conditions; they are not automatically current production claims.

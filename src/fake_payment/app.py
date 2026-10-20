@@ -141,8 +141,8 @@ def create_refund(
         background.add_task(_send_webhook, row)
         time.sleep(5)
     elif simulate == "timeout_after_processing_no_webhook":
-        # Fault-lab path: persist the refund and drop the synchronous ACK without
-        # a Webhook. ReturnOps must keep UNKNOWN until an authoritative lookup.
+        # Fault-lab 路径：持久化退款并丢弃同步 ACK，且不发送 Webhook。
+        # ReturnOps 必须保持 UNKNOWN，直到权威查询确认结果。
         time.sleep(5)
     elif simulate == "webhook_before_timeout":
         # 刻意制造两条 evidence path 的竞争：在原始 HTTP 请求

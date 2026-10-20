@@ -1,6 +1,6 @@
 # Failure scenarios and acceptance boundaries
 
-This document records reproducible failure scenarios, expected invariants, and the evidence that should be obtained. Execution entry points and historical results are in [faultlab](../faultlab/README.en.md), [test evidence](TEST-EVIDENCE.en.md), and the relevant integration tests. Scenarios that have not actually been executed remain acceptance requirements awaiting verification.
+The following reproducible failure scenarios define expected invariants and the evidence that should be obtained. Execution entry points and historical results are in [faultlab](../faultlab/README.en.md), [test evidence](TEST-EVIDENCE.en.md), and the relevant integration tests. Scenarios that have not actually been executed remain acceptance requirements awaiting verification.
 
 | Scenario | Behavior that must hold | Proportionate evidence |
 | --- | --- | --- |
