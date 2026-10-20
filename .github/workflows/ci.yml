@@ -44,6 +44,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: 检查双语文档配对
+        run: python3 scripts/check_doc_pairs.py
+
       - name: actionlint
         run: pipx run --spec "actionlint-py==${ACTIONLINT_VERSION}" actionlint -color
 

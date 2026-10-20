@@ -1,8 +1,8 @@
 name: controlled demo integration
 
 on:
-  # Browser E2E and the full Docker/n8n runtime are expensive, local-only acceptance tests.
-  # Run them explicitly from Actions when validating a demo-stack or workflow change.
+  # 浏览器 E2E 与完整 Docker/n8n 运行时是昂贵的本地验收测试。
+  # 验证演示栈或工作流变更时，从 Actions 显式运行它们。
   workflow_dispatch:
 
 permissions:

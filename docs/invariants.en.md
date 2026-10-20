@@ -1,6 +1,6 @@
 # ReturnFlow correctness invariants
 
-This document defines the acceptance boundaries of the business system. The authoritative implementation of state, permissions, evidence, and external effects lives in the backend and its tests; the assertions below must be verified against the actual code and runtime environment.
+The authoritative implementation of state, permissions, evidence, and external effects lives in the backend and its tests; the assertions below must be verified against the actual code and runtime environment.
 
 ## 1. Tenants and permissions
 
