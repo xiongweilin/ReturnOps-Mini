@@ -16,7 +16,7 @@ A timeout after the payment provider processes an intent is **unknown**, not pro
 
 ## Demo and architecture
 
-[Chinese demo video](docs/assets/returnflow-demo.mp4) · [Subtitles](docs/assets/returnflow-demo.zh-CN.srt) · [Recorded walkthrough](docs/RECORDING.md)
+[Chinese demo video](docs/assets/returnflow-demo.mp4) · [Subtitles](docs/assets/returnflow-demo.zh-CN.srt) · [Recorded walkthrough](docs/RECORDING.en.md)
 
 ![ReturnFlow overview](docs/assets/returnflow-overview.png)
 
@@ -50,7 +50,7 @@ PostgreSQL concurrency tests require a configured RETURNOPS_TEST_DATABASE_URL an
     npm run e2e:typecheck
     npm run test:e2e
 
-Actual n8n runtime/browser integration checks are separate from the ordinary lightweight checks; consult [test evidence](docs/TEST-EVIDENCE.md) for the tested versions, scenarios, results and limitations.
+Actual n8n runtime/browser integration checks are separate from the ordinary lightweight checks; consult [test evidence](docs/TEST-EVIDENCE.en.md) for the tested versions, scenarios, results and limitations.
 
 To exercise the provider-ACK-loss scenario:
 
@@ -75,15 +75,15 @@ An intentional reset needs separate confirmation:
 
 ## Documentation
 
-- [Architecture and security boundary](docs/ARCHITECTURE.md)
-- [Business invariants](docs/invariants.md)
-- [Failure scenarios and acceptance expectations](docs/failure-lab.md)
-- [Demo operation](docs/DEMO.md)
-- [Test evidence and limitations](docs/TEST-EVIDENCE.md)
-- [Portfolio case](docs/PORTFOLIO.md)
-- [Project presentation](docs/INTERVIEW-PITCH.md)
-- [n8n integration](n8n/README.md)
-- [Fault injection harness](faultlab/README.md)
-- [Initial implementation baseline (historical)](docs/BASELINE.md)
+- [Architecture and security boundary](docs/ARCHITECTURE.en.md)
+- [Business invariants](docs/invariants.en.md)
+- [Failure scenarios and acceptance expectations](docs/failure-lab.en.md)
+- [Demo operation](docs/DEMO.en.md)
+- [Test evidence and limitations](docs/TEST-EVIDENCE.en.md)
+- [Portfolio case](docs/PORTFOLIO.en.md)
+- [Project presentation](docs/INTERVIEW-PITCH.en.md)
+- [n8n integration](n8n/README.en.md)
+- [Fault injection harness](faultlab/README.en.md)
+- [Initial implementation baseline (historical)](docs/BASELINE.en.md)
 
 This README describes the **current demonstration**. Historical measurements and initial baselines remain labeled by their original evidence conditions; they are not automatically current production claims.
